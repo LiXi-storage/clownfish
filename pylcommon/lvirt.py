@@ -263,6 +263,71 @@ def host_check_lsscsi(log, host, expect_dev_number):
         return -1
 
 
+def vm_copy_in(log, server_host, vm, src, dest):
+    """
+    Copy file @src on server_host into dir @dest on guest @vm
+    """
+    retval = server_host.sh_run(log, "which virt-copy-in")
+    if retval.cr_exit_status != 0:
+        command = ("yum install libguestfs-tools -y")
+        retval = server_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to install libguestfs-tools via "
+                         "command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         server_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+    ret = 0
+    command = ("virt-copy-in -d %s %s %s" % (vm, src, dest))
+    retval = server_host.sh_run(log, command)
+    if retval.cr_exit_status:
+        log.cl_error("failed to copy [%s] from host_server [%s] into "
+                     "host_vm [%s], ret = [%d], stdout = [%s], stderr = [%s]",
+                     src,
+                     server_host.sh_hostname,
+                     vm,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+        ret = -1
+
+    # "virt-copy-in -d" may fail if multiple device on guest domain, try
+    # "virt-copy-in -i" with each device then.
+    if ret == -1:
+        command = ("virsh domblklist %s --details | grep disk | awk '{print $4}'" % vm)
+        retval = server_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to get block list of vm [%s] on host_server "
+                         "host_vm [%s], ret = [%d], stdout = [%s], stderr = [%s]",
+                         vm,
+                         server_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        images = retval.cr_stdout.splitlines()
+        for image in images:
+            command = ("virt-copy-in -i %s %s %s" % (image, src, dest))
+            retval = server_host.sh_run(log, command)
+            if retval.cr_exit_status == 0:
+                return 0
+        log.cl_error("failed to copy [%s] from host_server [%s] into "
+                     "host_vm [%s]:[%s], ret = [%d], stdout = [%s], stderr = [%s]",
+                     src,
+                     server_host.sh_hostname,
+                     vm,
+                     images,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+    return ret
+
+
 def vm_check_shut_off(log, server_host, hostname):
     """
     Check whether vm is shut off
@@ -432,31 +497,9 @@ NM_CONTROLLED=no
                          server_host.sh_hostname)
             return -1
 
-        ret = server_host.sh_run(log, "which virt-copy-in")
-        if ret.cr_exit_status != 0:
-            command = ("yum install libguestfs-tools-c -y")
-            retval = server_host.sh_run(log, command)
-            if retval.cr_exit_status:
-                log.cl_error("failed to run command [%s] on host [%s], "
-                             "ret = [%d], stdout = [%s], stderr = [%s]",
-                             command,
-                             server_host.sh_hostname,
-                             retval.cr_exit_status,
-                             retval.cr_stdout,
-                             retval.cr_stderr)
-                return -1
-
-        command = ("virt-copy-in -d %s %s "
-                   "/etc/sysconfig/network-scripts" % (hostname, host_ifcfg_fpath))
-        retval = server_host.sh_run(log, command)
-        if retval.cr_exit_status:
-            log.cl_error("failed to run command [%s] on host [%s], "
-                         "ret = [%d], stdout = [%s], stderr = [%s]",
-                         command,
-                         server_host.sh_hostname,
-                         retval.cr_exit_status,
-                         retval.cr_stdout,
-                         retval.cr_stderr)
+        ret = vm_copy_in(log, server_host, hostname, host_ifcfg_fpath,
+                         "/etc/sysconfig/network-scripts")
+        if ret:
             return -1
         eth_number += 1
 
@@ -473,18 +516,10 @@ NM_CONTROLLED=no
                      retval.cr_stderr)
         return -1
 
-    command = ("virt-copy-in -d %s %s "
-               "/etc/udev/rules.d" % (hostname, host_rules_fpath))
-    retval = server_host.sh_run(log, command)
-    if retval.cr_exit_status:
-        log.cl_error("failed to run command [%s] on host [%s], "
-                     "ret = [%d], stdout = [%s], stderr = [%s]",
-                     command,
-                     server_host.sh_hostname,
-                     retval.cr_exit_status,
-                     retval.cr_stdout,
-                     retval.cr_stderr)
-        return -1
+    ret = vm_copy_in(log, server_host, hostname, host_rules_fpath,
+                     "/etc/udev/rules.d")
+    if ret:
+         return -1
 
     if distro == ssh_host.DISTRO_RHEL6:
         network_string = 'NETWORKING=yes\n'
@@ -503,17 +538,9 @@ NM_CONTROLLED=no
                          server_host.sh_hostname)
             return -1
 
-        command = ("virt-copy-in -d %s %s "
-                   "/etc/sysconfig" % (hostname, host_network_fpath))
-        retval = server_host.sh_run(log, command)
-        if retval.cr_exit_status:
-            log.cl_error("failed to run command [%s] on host [%s], "
-                         "ret = [%d], stdout = [%s], stderr = [%s]",
-                         command,
-                         server_host.sh_hostname,
-                         retval.cr_exit_status,
-                         retval.cr_stdout,
-                         retval.cr_stderr)
+        ret = vm_copy_in(log, server_host, hostname, host_network_fpath,
+                         "/etc/sysconfig")
+        if ret:
             return -1
     else:
         host_hostname_fpath = workspace + "/hostname"
@@ -529,17 +556,9 @@ NM_CONTROLLED=no
                          retval.cr_stderr)
             return -1
 
-        command = ("virt-copy-in -d %s %s "
-                   "/etc" % (hostname, host_hostname_fpath))
-        retval = server_host.sh_run(log, command)
-        if retval.cr_exit_status:
-            log.cl_error("failed to run command [%s] on host [%s], "
-                         "ret = [%d], stdout = [%s], stderr = [%s]",
-                         command,
-                         server_host.sh_hostname,
-                         retval.cr_exit_status,
-                         retval.cr_stdout,
-                         retval.cr_stderr)
+        ret = vm_copy_in(log, server_host, hostname, host_hostname_fpath,
+                         "/etc")
+        if ret:
             return -1
 
     command = ("virsh start %s" % hostname)
