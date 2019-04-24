@@ -10,6 +10,7 @@ import os
 import time
 import threading
 import readline
+import traceback
 import zmq
 
 # Local libs
@@ -18,7 +19,6 @@ from pylcommon import clog
 from pylcommon import time_util
 from pylcommon import constants
 from pyclownfish import clownfish_pb2
-from pyclownfish import clownfish
 
 CLOWNFISH_CONSOLE_QUERY_INTERVAL = 1
 CLOWNFISH_CONSOLE_PING_INTERVAL = 1
@@ -146,6 +146,7 @@ class ClownfishClient(object):
         self.cc_abort_event = threading.Event()
         # used to notify the stop running
         self.cc_condition = threading.Condition()
+        self.cc_prompt = '$ (h for help): '
 
     def cc_ping_thread(self):
         """
@@ -222,56 +223,42 @@ class ClownfishClient(object):
         log.cl_debug("terminated ZMQ context of pinging thread")
         return ret
 
-    def cc_children(self):
+    def _cc_get_candidates(self, line, begidx, endidx):
         """
-        Return the children under this directory
+        Get the candidates from server
         """
         log = self.cc_log
-
-        children = []
-        request_type = clownfish_pb2.ClownfishMessage.CMT_COMMAND_CHILDREN_REQUEST
-        reply_type = clownfish_pb2.ClownfishMessage.CMT_COMMAND_CHILDREN_REPLY
+        clownfish_message = clownfish_pb2.ClownfishMessage
+        request_type = clownfish_message.CMT_INTERACT_REQUEST
+        reply_type = clownfish_message.CMT_INTERACT_REPLY
         message = ClownfishConsoleMessage(self.cc_uuid, request_type,
                                           reply_type)
-        log.cl_debug("getting the command children from server")
+        message.ccm_request.cm_interact_request.cirt_line = line
+        message.ccm_request.cm_interact_request.cirt_begidx = begidx
+        message.ccm_request.cm_interact_request.cirt_endidx = endidx
         ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
                                       CLOWNFISH_CONSOLE_TIMEOUT)
         if ret:
-            log.cl_error("failed to get command children from server")
-            return children
+            log.cl_stderr("failed to query command [%s] on server", line)
+            return []
 
-        for name in message.ccm_reply.cm_command_children_reply.cccry_children:
-            escaped_name = clownfish.clownfish_entry_escape(name)
-            children.append(escaped_name)
-        return children
+        reply = message.ccm_reply.cm_interact_reply
+        candidates = []
+        for candidate in reply.ciry_candidates:
+            candidates.append(candidate)
+        return candidates
 
-    def cc_command_dict(self):
+    def cc_get_candidates(self, line, begidx, endidx):
         """
-        Return the command dict with type ClownfishConsoleCommand
+        Get the candidate from the server
         """
         log = self.cc_log
-
-        command_dict = {}
-        message = ClownfishConsoleMessage(self.cc_uuid,
-                                          clownfish_pb2.ClownfishMessage.CMT_COMMAND_DICT_REQUEST,
-                                          clownfish_pb2.ClownfishMessage.CMT_COMMAND_DICT_REPLY)
-        log.cl_debug("getting the command dictionary from server")
-        ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
-                                      CLOWNFISH_CONSOLE_TIMEOUT)
-        if ret:
-            log.cl_error("failed to get command dictionary from server")
-            return command_dict
-
-        for item in message.ccm_reply.cm_command_dict_reply.ccdry_items:
-            command = item.cci_command
-            need_child = item.cci_need_child
-            arguments = []
-            for argument in item.cci_arguments:
-                arguments.append(argument)
-            ccommand = ClownfishConsoleCommand(command, arguments, need_child)
-            command_dict[command] = ccommand
-
-        return command_dict
+        try:
+            return self._cc_get_candidates(line, begidx, endidx)
+        except:
+            log.cl_error("exception when getting the candidates: %s",
+                         traceback.format_exc())
+            return []
 
     def cc_completer(self, text, state):
         # pylint: disable=too-many-branches,unused-argument
@@ -281,67 +268,15 @@ class ClownfishClient(object):
         """
         response = None
         if state == 0:
-            # This is the first time for this text,
-            # so build a match list.
-            origline = readline.get_line_buffer()
-            begin = readline.get_begidx()
-            end = readline.get_endidx()
-            being_completed = origline[begin:end]
-            words = origline.split()
-            if not words:
-                self.cc_candidates = sorted(self.cc_command_dict().keys())
-            else:
-                try:
-                    if begin == 0:
-                        # first word
-                        candidates = self.cc_command_dict().keys()
-                    else:
-                        # later word
-                        first = words[0]
-                        config_command = self.cc_command_dict()[first]
-                        candidates = list(config_command.ccc_arguments)
-
-                        if config_command.ccc_need_child:
-                            subdirs = self.cc_children()
-                            if subdirs is not None:
-                                candidates += subdirs
-
-                    if being_completed:
-                        # match options with portion of input
-                        # being completed
-                        self.cc_candidates = []
-                        for candidate in candidates:
-                            if not candidate.startswith(being_completed):
-                                continue
-                            self.cc_candidates.append(candidate)
-                    else:
-                        # matching empty string so use all candidates
-                        self.cc_candidates = candidates
-                except (KeyError, IndexError):
-                    self.cc_candidates = []
-        try:
-            response = self.cc_candidates[state]
-        except IndexError:
-            response = None
-        return response
-
-    def cc_pwd(self):
-        """
-        Return the PWD
-        """
-        log = self.cc_log
-
-        message = ClownfishConsoleMessage(self.cc_uuid,
-                                          clownfish_pb2.ClownfishMessage.CMT_PWD_REQUEST,
-                                          clownfish_pb2.ClownfishMessage.CMT_PWD_REPLY)
-        log.cl_debug("getting the pwd from server")
-        ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
-                                      CLOWNFISH_CONSOLE_TIMEOUT)
-        if ret:
-            log.cl_error("failed to get pwd from server")
-            return "UNKOWN"
-
-        return message.ccm_reply.cm_pwd_reply.cpry_pwd
+            # Build a match list
+            line = readline.get_line_buffer()
+            begidx = readline.get_begidx()
+            endidx = readline.get_endidx()
+            self.cc_candidates = self.cc_get_candidates(line, begidx, endidx)
+        if len(self.cc_candidates) > state:
+            return self.cc_candidates[state]
+        else:
+            return response
 
     def cc_command(self, log, cmd_line):
         """
@@ -369,10 +304,10 @@ class ClownfishClient(object):
                 log.cl_emit(record.clr_name, record.clr_levelno,
                             record.clr_pathname, record.clr_lineno,
                             record.clr_funcname, record.clr_msg,
-                            created_time=record.clr_created_time,
+                            created_second=record.clr_created_second,
                             is_stdout=record.clr_is_stdout,
                             is_stderr=record.clr_is_stderr)
-            if command_reply.ccry_is_final:
+            if command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_FINAL:
                 final = command_reply.ccry_final
                 ret = final.ccfr_exit_status
                 log.cl_abort = final.ccfr_quit
@@ -381,7 +316,7 @@ class ClownfishClient(object):
                              final.ccfr_exit_status,
                              final.ccfr_quit)
                 break
-            else:
+            elif command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_PARTWAY:
                 clownfish_message = clownfish_pb2.ClownfishMessage
                 request_type = clownfish_message.CMT_COMMAND_PARTWAY_QUERY
                 reply_type = clownfish_message.CMT_COMMAND_REPLY
@@ -389,13 +324,31 @@ class ClownfishClient(object):
                                                   reply_type)
                 query = message.ccm_request.cm_command_partway_query
                 query.ccpq_abort = abort_event.is_set()
-                log.cl_debug("partway querying of the command [%s] on server", cmd_line)
+                log.cl_debug("partway querying of the command [%s] on server",
+                             cmd_line)
                 ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
                                               CLOWNFISH_CONSOLE_TIMEOUT)
                 if ret:
                     log.cl_stderr("failed to query command [%s] on server", cmd_line)
                     break
                 time.sleep(CLOWNFISH_CONSOLE_QUERY_INTERVAL)
+            elif command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_CONFIRM:
+                clownfish_message = clownfish_pb2.ClownfishMessage
+                request_type = clownfish_message.CMT_COMMAND_CONFIRM
+                reply_type = clownfish_message.CMT_COMMAND_REPLY
+                message = ClownfishConsoleMessage(self.cc_uuid, request_type,
+                                                  reply_type)
+                confirm = message.ccm_request.cm_command_confirm
+                confirm.ccc_confirmed = True
+                log.cl_debug("confirmed to run command [%s] on server", cmd_line)
+                ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
+                                              CLOWNFISH_CONSOLE_TIMEOUT)
+                if ret:
+                    log.cl_stderr("failed to send confirm of command [%s] on server", cmd_line)
+                    break
+                time.sleep(CLOWNFISH_CONSOLE_QUERY_INTERVAL)
+            else:
+                log.cl_error("unknown command reply type [%d]", command_reply.ccry_type)
         log.cl_result.cr_exit_status = ret
         return
 
@@ -415,9 +368,8 @@ class ClownfishClient(object):
         while self.cc_running:
             if cmdline is None:
                 try:
-                    prompt = '[%s]$ (h for help): ' % self.cc_pwd()
-                    log.cl_debug(prompt)
-                    cmd_line = raw_input(prompt)
+                    log.cl_debug(self.cc_prompt)
+                    cmd_line = raw_input(self.cc_prompt)
                 except (KeyboardInterrupt, EOFError):
                     log.cl_debug("keryboard interrupt recieved")
                     log.cl_info("")
@@ -534,7 +486,7 @@ def usage():
                  (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
     utils.eprint("%s -P %s 192.168.1.2" %
                  (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
-    utils.eprint("%s -P %s 192.168.1.2 ls -R" %
+    utils.eprint("%s -P %s 192.168.1.2 h" %
                  (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
 
 

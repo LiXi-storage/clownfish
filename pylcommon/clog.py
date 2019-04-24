@@ -281,7 +281,7 @@ class CommandLog(object):
         self.cl_config()
 
     def cl_emit(self, name, level, filename, lineno, func, message,
-                created_time=None, is_stdout=False, is_stderr=False):
+                created_second=None, is_stdout=False, is_stderr=False):
         """
         Emit a log
         """
@@ -292,10 +292,10 @@ class CommandLog(object):
         record = self.cl_logger.makeRecord(name, level, filename, lineno,
                                            message, record_args, exc_info,
                                            func, extra)
-        if created_time is not None:
+        if created_second is not None:
             # Fields like relativeCreated, msecs should be updated ideally. But
             # since they are not used, it doesn't matter
-            record.created = created_time
+            record.created = created_second
         self.cl_logger.handle(record)
 
         if self.cl_record_consumer:

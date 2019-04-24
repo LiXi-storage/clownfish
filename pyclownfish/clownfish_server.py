@@ -2,7 +2,7 @@
 # All Rights Reserved.
 # Author: lixi@ddn.com
 """
-Server Library for clownfish
+Clownfish Server that a console can connect o
 Clownfish is an automatic management system for Lustre
 """
 import threading
@@ -20,6 +20,7 @@ from pylcommon import cmd_general
 from pylcommon import constants
 from pyclownfish import clownfish_pb2
 from pyclownfish import clownfish
+from pyclownfish import clownfish_command
 
 CLOWNFISH_WORKER_NUMBER = 10
 CLOWNFISH_CONNECTION_TIMEOUT = 30
@@ -49,8 +50,8 @@ class ClownfishConnection(object):
         self.cc_client_hash = client_hash
         self.cc_sequence = sequence
         self.cc_atime = time.time()
-        self.cc_walk = clownfish.ClownfishWalk(instance)
         self.cc_connection_name = "connection_%s" % sequence
+        self.cc_instance = instance
         self.cc_workspace = instance.ci_workspace + "/" + self.cc_connection_name
         ret = utils.mkdir(self.cc_workspace)
         if ret:
@@ -86,6 +87,7 @@ class ClownfishConnection(object):
         """
         # pylint: disable=broad-except,too-many-branches,too-many-statements
         log = self.cc_command_log
+        log.cl_debug("start thread of command line [%s]", cmdline)
         args = cmdline.split()
         argc = len(args)
         if argc == 0:
@@ -94,11 +96,11 @@ class ClownfishConnection(object):
             self.cc_cmdline_finish()
             return
 
-        operation = clownfish.CLOWNFISH_DELIMITER_AND
+        operation = clownfish_command.CLOWNFISH_DELIMITER_AND
         retval = 0
         while operation != "":
-            if ((operation == clownfish.CLOWNFISH_DELIMITER_AND and retval != 0) or
-                    (operation == clownfish.CLOWNFISH_DELIMITER_OR and retval == 0)):
+            if ((operation == clownfish_command.CLOWNFISH_DELIMITER_AND and retval != 0) or
+                    (operation == clownfish_command.CLOWNFISH_DELIMITER_OR and retval == 0)):
                 log.cl_debug("finish cmdline because delimiter [%s] and "
                              "retval [%d]", operation, retval)
                 break
@@ -109,12 +111,12 @@ class ClownfishConnection(object):
             operation = ""
             for argc_index in range(argc):
                 arg = args[argc_index]
-                if arg == clownfish.CLOWNFISH_DELIMITER_AND:
-                    operation = clownfish.CLOWNFISH_DELIMITER_AND
-                elif arg == clownfish.CLOWNFISH_DELIMITER_OR:
-                    operation = clownfish.CLOWNFISH_DELIMITER_OR
-                elif arg == clownfish.CLOWNFISH_DELIMITER_CONT:
-                    operation = clownfish.CLOWNFISH_DELIMITER_CONT
+                if arg == clownfish_command.CLOWNFISH_DELIMITER_AND:
+                    operation = clownfish_command.CLOWNFISH_DELIMITER_AND
+                elif arg == clownfish_command.CLOWNFISH_DELIMITER_OR:
+                    operation = clownfish_command.CLOWNFISH_DELIMITER_OR
+                elif arg == clownfish_command.CLOWNFISH_DELIMITER_CONT:
+                    operation = clownfish_command.CLOWNFISH_DELIMITER_CONT
 
                 if operation != "":
                     if argc_index == 0:
@@ -137,11 +139,11 @@ class ClownfishConnection(object):
                 current_args = args
 
             command = current_args[0]
-            if command not in clownfish.CLOWNFISH_SERVER_COMMNADS:
+            if command not in clownfish_command.CLOWNFISH_COMMNADS:
                 log.cl_stderr('unknown command [%s]', command)
                 retval = -1
             else:
-                ccommand = clownfish.CLOWNFISH_SERVER_COMMNADS[command]
+                ccommand = clownfish_command.CLOWNFISH_COMMNADS[command]
                 try:
                     retval = ccommand.cc_function(self, current_args)
                     log.cl_debug("finished cmdline part %s", current_args)
@@ -152,6 +154,7 @@ class ClownfishConnection(object):
                     retval = -1
                     break
 
+        log.cl_debug("finished thread of command line [%s]", cmdline)
         log.cl_result.cr_exit_status = retval
         self.cc_cmdline_finish()
 
@@ -168,10 +171,12 @@ class ClownfishConnection(object):
         thread_log.cl_debug("consuming log of connection [%s]",
                             self.cc_connection_name)
         log = self.cc_command_log
+        log.cl_debug("consuming log of connection [%s]",
+                     self.cc_connection_name)
         if log.cl_result.cr_exit_status is None:
-            command_reply.ccry_is_final = False
+            command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_PARTWAY
         else:
-            command_reply.ccry_is_final = True
+            command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_FINAL
             command_reply.ccry_final.ccfr_exit_status = log.cl_result.cr_exit_status
             command_reply.ccry_final.ccfr_quit = self.cc_quit
         records = command_reply.ccry_logs
@@ -185,7 +190,7 @@ class ClownfishConnection(object):
             record.clr_pathname = log_record.pathname
             record.clr_lineno = log_record.lineno
             record.clr_funcname = log_record.funcName
-            record.clr_created_time = log_record.created
+            record.clr_created_second = int(log_record.created)
             record.clr_msg = log_record.msg
 
     def cc_command(self, thread_log, cmd_line, command_reply):
@@ -195,6 +200,7 @@ class ClownfishConnection(object):
         # pylint: disable=broad-except
         thread_log.cl_info("running command [%s]", cmd_line)
         log = self.cc_command_log
+        log.cl_debug("start running the command on server")
         self.cc_last_retval = log.cl_result.cr_exit_status
         log.cl_result.cr_clear()
         log.cl_abort = False
@@ -202,10 +208,25 @@ class ClownfishConnection(object):
         utils.thread_start(self.cc_cmdline_thread, (cmd_line, ))
         # Wait a little bit for the command that can finish quickly
         self.cc_condition.acquire()
-        self.cc_condition.wait(clownfish.MAX_FAST_COMMAND_TIME)
+        self.cc_condition.wait(clownfish_command.MAX_FAST_COMMAND_TIME)
         self.cc_condition.release()
         self.cc_consume_command_log(thread_log, command_reply)
-        thread_log.cl_info("returned reply of command [%s]", cmd_line)
+        thread_log.cl_debug("returned reply of command [%s]", cmd_line)
+
+    def cc_interact(self, thread_log, request, reply):
+        """
+        Handle the interact request
+        """
+        # pylint: disable=no-self-use
+        thread_log.cl_info("handling interact")
+        candidates = \
+            clownfish_command.clownfish_interact_candidates(self,
+                                                            request.cirt_line,
+                                                            request.cirt_begidx,
+                                                            request.cirt_endidx)
+        print candidates
+        for candidate in candidates:
+            reply.ciry_candidates.append(candidate)
 
 
 class ClownfishServer(object):
@@ -359,7 +380,6 @@ class ClownfishServer(object):
                 log.cl_info("worker thread [%s] exiting because context has "
                             "been terminated", worker_index)
                 break
-
             cmessage = clownfish_pb2.ClownfishMessage
             request = cmessage()
             request.ParseFromString(request_message)
@@ -387,19 +407,10 @@ class ClownfishServer(object):
                     reply.cm_errno = cmessage.CE_NO_UUID
                 elif request.cm_type == cmessage.CMT_PING_REQUEST:
                     reply.cm_type = cmessage.CMT_PING_REPLY
-                elif request.cm_type == cmessage.CMT_COMMAND_DICT_REQUEST:
-                    reply.cm_type = cmessage.CMT_COMMAND_DICT_REPLY
-                    item_list = reply.cm_command_dict_reply.ccdry_items
-                    for command in clownfish.CLOWNFISH_SERVER_COMMNADS.values():
-                        item = item_list.add()
-                        item.cci_command = command.cc_command
-                        item.cci_need_child = command.cc_need_child
-                        if command.cc_arguments is not None:
-                            for argument in command.cc_arguments:
-                                item.cci_arguments.append(argument)
-                elif request.cm_type == cmessage.CMT_PWD_REQUEST:
-                    reply.cm_type = cmessage.CMT_PWD_REPLY
-                    reply.cm_pwd_reply.cpry_pwd = clownfish.clownfish_pwd(connection.cc_walk)
+                elif request.cm_type == cmessage.CMT_INTERACT_REQUEST:
+                    reply.cm_type = cmessage.CMT_INTERACT_REPLY
+                    connection.cc_interact(log, request.cm_interact_request,
+                                           reply.cm_interact_reply)
                 elif request.cm_type == cmessage.CMT_COMMAND_REQUEST:
                     reply.cm_type = cmessage.CMT_COMMAND_REPLY
                     cmd_line = request.cm_command_request.ccrt_cmd_line
@@ -411,12 +422,6 @@ class ClownfishServer(object):
                         connection.cc_abort()
                     connection.cc_consume_command_log(log,
                                                       reply.cm_command_reply)
-                elif request.cm_type == cmessage.CMT_COMMAND_CHILDREN_REQUEST:
-                    reply.cm_type = cmessage.CMT_COMMAND_CHILDREN_REPLY
-                    children = clownfish.clownfish_children(connection.cc_walk)
-                    item_list = reply.cm_command_children_reply.cccry_children
-                    for child in children:
-                        item_list.append(child)
                 else:
                     reply.cm_type = cmessage.CMT_GENERAL
                     reply.cm_errno = cmessage.CE_NO_TYPE

@@ -19,6 +19,7 @@ if __file__[-4:].lower() in ['.pyc', '.pyo']:
 else:
     _RWLOCK_SRC_FILE = __file__
 _RWLOCK_SRC_FILE = os.path.normcase(_RWLOCK_SRC_FILE)
+LOCK_WAIT_TIMEOUT = 5
 
 
 class RWLockHandle(object):
@@ -75,7 +76,7 @@ class RWLock(object):
         necessary.
     """
 
-    def __init__(self, wait_timeout=10):
+    def __init__(self, wait_timeout=LOCK_WAIT_TIMEOUT):
         self.rwl_read_handles = []
         self.rwl_write_handle = None
         self.rwl_waiting_handles = []

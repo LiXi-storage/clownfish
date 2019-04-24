@@ -2,6 +2,7 @@
 Python library for Clownfish
 """
 __all__ = ["clownfish",
+           "clownfish_command",
            "clownfish_common",
            "clownfish_console",
            "clownfish_install",
