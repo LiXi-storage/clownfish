@@ -329,9 +329,9 @@ class ClownfishClient(object):
                 ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
                                               CLOWNFISH_CONSOLE_TIMEOUT)
                 if ret:
-                    log.cl_stderr("failed to query command [%s] on server", cmd_line)
+                    log.cl_stderr("failed to query command [%s] on server",
+                                  cmd_line)
                     break
-                time.sleep(CLOWNFISH_CONSOLE_QUERY_INTERVAL)
             elif command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_CONFIRM:
                 clownfish_message = clownfish_pb2.ClownfishMessage
                 request_type = clownfish_message.CMT_COMMAND_CONFIRM

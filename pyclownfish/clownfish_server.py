@@ -59,13 +59,14 @@ class ClownfishConnection(object):
                       (self.cc_workspace))
             parent_log.cl_error(reason)
             raise Exception(reason)
+        self.cc_condition = threading.Condition()
         self.cc_command_log = parent_log.cl_get_child(self.cc_connection_name,
                                                       resultsdir=self.cc_workspace,
-                                                      record_consumer=True)
+                                                      record_consumer=True,
+                                                      condition=self.cc_condition)
         self.cc_last_retval = None
         self.cc_quit = False
         # used to notify the finish of command
-        self.cc_condition = threading.Condition()
 
     def cc_update_atime(self):
         """
@@ -173,6 +174,12 @@ class ClownfishConnection(object):
         log = self.cc_command_log
         log.cl_debug("consuming log of connection [%s]",
                      self.cc_connection_name)
+
+        self.cc_condition.acquire()
+        if (log.cl_result.cr_exit_status is None) and log.cl_is_empty_nolock():
+            self.cc_condition.wait(clownfish_command.MAX_FAST_COMMAND_TIME)
+        self.cc_condition.release()
+
         if log.cl_result.cr_exit_status is None:
             command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_PARTWAY
         else:
@@ -206,10 +213,6 @@ class ClownfishConnection(object):
         log.cl_abort = False
 
         utils.thread_start(self.cc_cmdline_thread, (cmd_line, ))
-        # Wait a little bit for the command that can finish quickly
-        self.cc_condition.acquire()
-        self.cc_condition.wait(clownfish_command.MAX_FAST_COMMAND_TIME)
-        self.cc_condition.release()
         self.cc_consume_command_log(thread_log, command_reply)
         thread_log.cl_debug("returned reply of command [%s]", cmd_line)
 

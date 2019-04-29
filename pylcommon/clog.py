@@ -156,7 +156,7 @@ class CommandLog(object):
     """
     # pylint: disable=too-many-instance-attributes
     def __init__(self, name=None, resultsdir=None, simple_console=False,
-                 record_consumer=False):
+                 record_consumer=False, condition=None):
         self.cl_name = name
         self.cl_result = utils.CommandResult()
         # Whether the command is about to abort
@@ -165,7 +165,10 @@ class CommandLog(object):
         self.cl_simple_console = simple_console
         self.cl_logger = None
         self.cl_records = []
-        self.cl_condition = threading.Condition()
+        if condition is not None:
+            self.cl_condition = condition
+        else:
+            self.cl_condition = threading.Condition()
         # Whether there is any consumer of the record
         # If no consumer, then the stdout and stderror will be saved into
         # cl_result
@@ -175,6 +178,7 @@ class CommandLog(object):
         self.cl_warning_handler = None
         self.cl_error_handler = None
         self.cl_console_handler = None
+        # When adding new log, notify notify_condition
 
     def cl_set_propaget(self):
         """
@@ -189,7 +193,7 @@ class CommandLog(object):
         self.cl_logger.propagate = False
 
     def cl_get_child(self, name, resultsdir=None, simple_console=False,
-                     exclusive=True, record_consumer=False):
+                     exclusive=True, record_consumer=False, condition=None):
         """
         Get a child log
         If exclusive, the name should not be used for twice
@@ -200,7 +204,8 @@ class CommandLog(object):
         return get_log(name, resultsdir=resultsdir,
                        simple_console=simple_console,
                        exclusive=exclusive,
-                       record_consumer=record_consumer)
+                       record_consumer=record_consumer,
+                       condition=condition)
 
     def cl_config(self):
         """
@@ -303,6 +308,7 @@ class CommandLog(object):
                                     is_stderr=is_stderr)
             self.cl_condition.acquire()
             self.cl_records.append(log_record)
+            self.cl_condition.notifyAll()
             self.cl_condition.release()
         elif is_stdout:
             self.cl_result.cr_stdout += message + "\n"
@@ -323,6 +329,14 @@ class CommandLog(object):
         name = self.cl_name
         self.cl_emit(name, level, filename, lineno, func, message,
                      is_stdout=is_stdout, is_stderr=is_stderr)
+
+    def cl_is_empty_nolock(self):
+        """
+        If no log record, return True
+        """
+        if len(self.cl_records) == 0:
+            return True
+        return False
 
     def cl_consume(self):
         """
@@ -378,14 +392,15 @@ class CommandLog(object):
 
 
 def get_log(name=None, resultsdir=None, simple_console=False,
-            exclusive=True, record_consumer=False):
+            exclusive=True, record_consumer=False, condition=None):
     """
     Get the log class
     If exclusive, the name should not be used for twice
     """
     log = CommandLog(name=name, resultsdir=resultsdir,
                      simple_console=simple_console,
-                     record_consumer=record_consumer)
+                     record_consumer=record_consumer,
+                     condition=condition)
     old_log = GLOBAL_LOGS.cls_log_add_or_get(log)
     if old_log is log:
         # Newly added, config it
