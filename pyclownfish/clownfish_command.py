@@ -331,8 +331,33 @@ def clownfish_command_format_all(connection, args):
     """
     Format all the filesystems
     """
-    return clownfish_command_filesystem_all(connection, args,
-                                            CLOWNFISH_COMMNAD_FORMAT)
+    log = connection.cc_command_log
+    if ((CLOWNFISH_OPTION_SHORT_HELP in args) or
+            (CLOWNFISH_OPTION_LONG_HELP in args)):
+        log.cl_stdout("""Usage: %s_all
+Format *all* Lustre device(s)
+  -f: force running the command without asking for confirmation""" %
+                      (args[0]))
+        return 0
+
+    confirmed = False
+    if "-f" in args or "--force" in args:
+        confirmed = True
+
+    if not confirmed:
+        input_result = connection.cc_ask_for_input("Are you sure to format all Lustre devices? (y,N) ")
+        if input_result is None:
+            log.cl_error("failed to get input")
+            return -1
+        if input_result.startswith("y") or input_result.startswith("Y"):
+            confirmed = True
+
+    if not confirmed:
+        log.cl_stdout("won't format any Lustre devices")
+        return -1
+
+    instance = connection.cc_instance
+    return instance.ci_format_all(log)
 
 
 CLOWNFISH_COMMNADS[CLOWNFISH_COMMNAD_FORMAT_ALL] = \
@@ -379,8 +404,9 @@ def clownfish_command_filesystem_usage(log, command):
     """
     Run command on the filesystems
     """
-    log.cl_stdout("""Usage: %s <filesystem>...
-Run %s on Lustre filesystem(s)""" %
+    log.cl_stdout("""Usage: %s [-f] <filesystem>...
+Run %s on Lustre filesystem(s)
+  -f: force running the command without asking for confirmation""" %
                   (command, command))
 
 

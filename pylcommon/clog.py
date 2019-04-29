@@ -178,7 +178,6 @@ class CommandLog(object):
         self.cl_warning_handler = None
         self.cl_error_handler = None
         self.cl_console_handler = None
-        # When adding new log, notify notify_condition
 
     def cl_set_propaget(self):
         """

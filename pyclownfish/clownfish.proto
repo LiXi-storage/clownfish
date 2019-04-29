@@ -2,7 +2,7 @@ syntax = "proto2";
 package clownfish;
 message ClownfishMessage {
     enum ClownfishProtocolVersion {
-        CPV_ZERO = 1;
+        CPV_ZERO = 0;
     }
 
     enum ClownfishMessageType {
@@ -17,7 +17,7 @@ message ClownfishMessage {
         CMT_COMMAND_REQUEST = 7;
         CMT_COMMAND_PARTWAY_QUERY = 8;
         CMT_COMMAND_REPLY = 9;
-        CMT_COMMAND_CONFIRM = 10;
+        CMT_COMMAND_INPT_REPLY = 10;
     }
 
     enum ClownfishErrno {
@@ -81,21 +81,27 @@ message ClownfishMessage {
 
     enum ClownfishCommandReplyType {
         /* Ask for confirm from client */
-        CCRYT_CONFIRM = 0;
+        CCRYT_INPUT = 0;
         /* Send partway logs */
         CCRYT_PARTWAY = 1;
         /* Command finished */
         CCRYT_FINAL = 2;
     }
 
-    message ClownfishCommandConfirm {
-        required bool ccc_confirmed = 1;
+    message ClownfishCommandInputReply {
+        required string cciry_input = 1;
+        required bool cciry_abort = 2;
+    }
+
+    message ClownfishCommandInputRequest {
+        required string ccirt_prompt = 1;
     }
 
     message ClownfishCommandReply {
         required ClownfishCommandReplyType ccry_type = 1;
         optional ClownfishCommandFinalReply ccry_final = 2;
-        repeated ClownfishLogRecord ccry_logs = 3;
+        optional ClownfishCommandInputRequest ccry_input_request = 3;
+        repeated ClownfishLogRecord ccry_logs = 4;
     }
 
     required ClownfishProtocolVersion cm_protocol_version = 1;
@@ -112,6 +118,6 @@ message ClownfishMessage {
     optional ClownfishCommandRequest cm_command_request = 11;
     optional ClownfishCommandPartwayQuery cm_command_partway_query = 12;
     optional ClownfishCommandReply cm_command_reply = 13;
-    optional ClownfishCommandConfirm cm_command_confirm = 14;
+    optional ClownfishCommandInputReply cm_command_input_reply = 14;
 }
 

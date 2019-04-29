@@ -66,7 +66,9 @@ class ClownfishConnection(object):
                                                       condition=self.cc_condition)
         self.cc_last_retval = None
         self.cc_quit = False
-        # used to notify the finish of command
+        # Used when a command running thread needs input from console
+        self.cc_input_prompt = None
+        self.cc_input_result = None
 
     def cc_update_atime(self):
         """
@@ -159,6 +161,40 @@ class ClownfishConnection(object):
         log.cl_result.cr_exit_status = retval
         self.cc_cmdline_finish()
 
+    def cc_ask_for_input(self, prompt, timeout=60):
+        """
+        Ask for input from console
+        """
+        log = self.cc_command_log
+        self.cc_condition.acquire()
+        self.cc_input_prompt = prompt
+        self.cc_input_result = None
+        self.cc_condition.notifyAll()
+        self.cc_condition.release()
+
+        time_start = time.time()
+        result = None
+        while True:
+            time_now = time.time()
+            elapsed = time_now - time_start
+            if elapsed >= timeout:
+                log.cl_error("timeout after waiting [%d] seconds for input",
+                             timeout)
+                return None
+
+            self.cc_condition.acquire()
+            if self.cc_input_result is None:
+                self.cc_condition.wait(10)
+            else:
+                result = self.cc_input_result
+                log.cl_debug("got input [%s] from console", result)
+                self.cc_input_result = None
+            self.cc_condition.release()
+            if result is not None:
+                break
+        log.cl_debug("got input [%s] from console", result)
+        return result
+
     def cc_abort(self):
         """
         Set the abort flag of the log
@@ -176,16 +212,23 @@ class ClownfishConnection(object):
                      self.cc_connection_name)
 
         self.cc_condition.acquire()
-        if (log.cl_result.cr_exit_status is None) and log.cl_is_empty_nolock():
+        if ((log.cl_result.cr_exit_status is None) and
+                log.cl_is_empty_nolock() and (not self.cc_input_prompt)):
             self.cc_condition.wait(clownfish_command.MAX_FAST_COMMAND_TIME)
+        input_prompt = self.cc_input_prompt
+        self.cc_input_prompt = None
         self.cc_condition.release()
 
-        if log.cl_result.cr_exit_status is None:
-            command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_PARTWAY
-        else:
+        if log.cl_result.cr_exit_status is not None:
             command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_FINAL
             command_reply.ccry_final.ccfr_exit_status = log.cl_result.cr_exit_status
             command_reply.ccry_final.ccfr_quit = self.cc_quit
+        elif input_prompt is not None:
+            log.cl_debug("asking for input")
+            command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_INPUT
+            command_reply.ccry_input_request.ccirt_prompt = input_prompt
+        else:
+            command_reply.ccry_type = clownfish_pb2.ClownfishMessage.CCRYT_PARTWAY
         records = command_reply.ccry_logs
         for clog_record in log.cl_consume():
             record = records.add()
@@ -336,8 +379,8 @@ class ClownfishServer(object):
             log.cl_info("disconnected client [%s] is cleaned up",
                         client_uuid)
         else:
-            log.cl_info("failed to disconnect client [%s], because it "
-                        "doesnot exist", client_uuid)
+            log.cl_error("failed to delete connection from [%s], because it "
+                         "doesnot exist", client_uuid)
         return ret
 
     def cs_fini(self):
@@ -405,8 +448,7 @@ class ClownfishServer(object):
                     log.cl_error("received a request with UUID [%s] that "
                                  "doesnot exist",
                                  client_uuid)
-                    # Reply type doesn't matter
-                    reply.cm_type = cmessage.CMT_PING_REPLY
+                    reply.cm_type = cmessage.CMT_GENERAL
                     reply.cm_errno = cmessage.CE_NO_UUID
                 elif request.cm_type == cmessage.CMT_PING_REQUEST:
                     reply.cm_type = cmessage.CMT_PING_REPLY
@@ -425,17 +467,33 @@ class ClownfishServer(object):
                         connection.cc_abort()
                     connection.cc_consume_command_log(log,
                                                       reply.cm_command_reply)
+                elif request.cm_type == cmessage.CMT_COMMAND_INPT_REPLY:
+                    reply.cm_type = cmessage.CMT_COMMAND_REPLY
+                    input_reply = request.cm_command_input_reply
+                    if input_reply.cciry_abort:
+                        connection.cc_abort()
+                    log.cl_debug("got input [%s] for command",
+                                 input_reply.cciry_input)
+                    connection.cc_condition.acquire()
+                    connection.cc_input_result = input_reply.cciry_input
+                    connection.cc_condition.notifyAll()
+                    connection.cc_condition.release()
+                    connection.cc_consume_command_log(log,
+                                                      reply.cm_command_reply)
                 else:
                     reply.cm_type = cmessage.CMT_GENERAL
                     reply.cm_errno = cmessage.CE_NO_TYPE
                     log.cl_error("recived a request with type [%s] that "
                                  "is not supported",
                                  request.cm_type)
-                    continue
+
                 if (reply.cm_type == cmessage.CMT_COMMAND_REPLY and
-                        connection.cc_quit):
+                        reply.cm_command_reply.ccry_type == cmessage.CCRYT_FINAL and
+                        reply.cm_command_reply.ccry_final.ccfr_quit):
                     ret = self.cs_connection_delete(connection.cc_sequence)
                     if ret:
+                        log.cl_error("failed to delete connection [%s]",
+                                     connection.cc_sequence)
                         reply.cm_errno = cmessage.CE_NO_UUID
 
             reply_message = reply.SerializeToString()

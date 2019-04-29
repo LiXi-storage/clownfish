@@ -305,12 +305,12 @@ def umount_prepare_format_mount_umount_mount_format(log, workspace, cclient):
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_ENABLE + " " + cstr.CSTR_LAZY_PREPARE)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_UMOUNT_ALL)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_PREPARE)
-    cmds.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL)
+    cmds.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL + " -f")
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_MOUNT_ALL)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_UMOUNT_ALL)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_MOUNT_ALL)
     # This tests that format will umount automatically
-    cmds.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL)
+    cmds.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL + " -f")
 
     ret = run_commands(log, cclient, cmds)
     if ret:
@@ -333,7 +333,7 @@ def abort_command(log, workspace, cclient):
     cmdlines = []
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_DISABLE + " " + cstr.CSTR_LAZY_PREPARE)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_ENABLE + " " + cstr.CSTR_LAZY_PREPARE)
-    cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL)
+    cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL + " -f")
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_MOUNT_ALL)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_UMOUNT_ALL)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_HELP)

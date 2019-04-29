@@ -282,6 +282,7 @@ class ClownfishClient(object):
         """
         Run a command in the console
         """
+        # pylint: disable=too-many-locals
         abort_event = self.cc_abort_event
         log.cl_result.cr_clear()
         # The abort flag is set by server
@@ -332,21 +333,26 @@ class ClownfishClient(object):
                     log.cl_stderr("failed to query command [%s] on server",
                                   cmd_line)
                     break
-            elif command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_CONFIRM:
+            elif command_reply.ccry_type == clownfish_pb2.ClownfishMessage.CCRYT_INPUT:
+                input_request = command_reply.ccry_input_request
+                prompt = input_request.ccirt_prompt
+                input_result = raw_input(prompt)
+
                 clownfish_message = clownfish_pb2.ClownfishMessage
-                request_type = clownfish_message.CMT_COMMAND_CONFIRM
+                request_type = clownfish_message.CMT_COMMAND_INPT_REPLY
                 reply_type = clownfish_message.CMT_COMMAND_REPLY
                 message = ClownfishConsoleMessage(self.cc_uuid, request_type,
                                                   reply_type)
-                confirm = message.ccm_request.cm_command_confirm
-                confirm.ccc_confirmed = True
-                log.cl_debug("confirmed to run command [%s] on server", cmd_line)
+                input_reply = message.ccm_request.cm_command_input_reply
+                input_reply.cciry_input = input_result
+                input_reply.cciry_abort = abort_event.is_set()
+                log.cl_debug("input [%s] to running command [%s] on server",
+                             input_reply.cciry_input, cmd_line)
                 ret = message.ccm_communicate(log, self.cc_poll, self.cc_client,
                                               CLOWNFISH_CONSOLE_TIMEOUT)
                 if ret:
-                    log.cl_stderr("failed to send confirm of command [%s] on server", cmd_line)
+                    log.cl_stderr("failed to send input of command [%s] to server", cmd_line)
                     break
-                time.sleep(CLOWNFISH_CONSOLE_QUERY_INTERVAL)
             else:
                 log.cl_error("unknown command reply type [%d]", command_reply.ccry_type)
         log.cl_result.cr_exit_status = ret
