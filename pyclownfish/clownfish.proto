@@ -43,8 +43,11 @@ message ClownfishMessage {
     }
 
     message ClownfishInteractRequest {
+        /* The current contents of the line buffer */
         required string cirt_line = 1;
+        /* The beginning index of the completion scope */
         required int32 cirt_begidx = 2;
+        /* The ending index of the completion scope */
         required int32 cirt_endidx = 3;
     }
 

@@ -21,6 +21,8 @@ from pylcommon import constants
 from pylcommon import rwlock
 from pyclownfish import clownfish_console
 from pyclownfish import clownfish_command
+from pyclownfish import clownfish_command_common
+from pyclownfish import clownfish_subsystem_option
 from pyclownfish import clownfish_install_nodeps
 
 COMMAND_ABORT_TIMEOUT = 10
@@ -302,7 +304,9 @@ def umount_prepare_format_mount_umount_mount_format(log, workspace, cclient):
     # pylint: disable=invalid-name,unused-argument
     cmds = []
     # Enable lazy_prepare
-    cmds.append(clownfish_command.CLOWNFISH_COMMNAD_ENABLE + " " + cstr.CSTR_LAZY_PREPARE)
+    cmds.append(clownfish_subsystem_option.SUBSYSTEM_OPTION_NAME + " " +
+                clownfish_subsystem_option.CLOWNFISH_COMMNAD_ENABLE + " " +
+                cstr.CSTR_LAZY_PREPARE)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_UMOUNT_ALL)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_PREPARE)
     cmds.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL + " -f")
@@ -331,8 +335,12 @@ def abort_command(log, workspace, cclient):
     result = log.cl_result
     cclient.cc_abort_event.set()
     cmdlines = []
-    cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_DISABLE + " " + cstr.CSTR_LAZY_PREPARE)
-    cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_ENABLE + " " + cstr.CSTR_LAZY_PREPARE)
+    cmdlines.append(clownfish_subsystem_option.SUBSYSTEM_OPTION_NAME + " " +
+                    clownfish_subsystem_option.CLOWNFISH_COMMNAD_DISABLE + " " +
+                    cstr.CSTR_LAZY_PREPARE)
+    cmdlines.append(clownfish_subsystem_option.SUBSYSTEM_OPTION_NAME + " " +
+                    clownfish_subsystem_option.CLOWNFISH_COMMNAD_ENABLE + " " +
+                    cstr.CSTR_LAZY_PREPARE)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_FORMAT_ALL + " -f")
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_MOUNT_ALL)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_UMOUNT_ALL)
@@ -340,25 +348,31 @@ def abort_command(log, workspace, cclient):
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_RETVAL)
     cmdlines.append(clownfish_command.CLOWNFISH_COMMNAD_PREPARE)
     for cmdline in cmdlines:
-        command = cmdline.split()[0]
-        ccommand = clownfish_command.CLOWNFISH_COMMNADS[command]
+        args = cmdline.split()
+        ccommand = clownfish_command.args2command(args)
+        if ccommand is None:
+            log.cl_error("failed to find command from cmdline [%s]",
+                         cmdline)
+            return -1
 
         time_start = time.time()
-        log.cl_info("start to run command [%s] at time [%s]", cmdline, time_start)
+        log.cl_info("start to run command [%s] at time [%s]", cmdline,
+                    time_start)
         cclient.cc_command(log, cmdline)
         time_end = time.time()
-        log.cl_info("finished running command [%s] at time [%s]", cmdline, time_end)
+        log.cl_info("finished running command [%s] at time [%s]", cmdline,
+                    time_end)
         if time_start + COMMAND_ABORT_TIMEOUT < time_end:
             log.cl_error("command [%s] costs [%s] seconds even when aborting",
                          cmdline, time_end - time_start)
             return -1
 
-        if ccommand.cc_speed == clownfish_command.SPEED_ALWAYS_SLOW:
+        if ccommand.cc_speed == clownfish_command_common.SPEED_ALWAYS_SLOW:
             if result.cr_exit_status == 0:
                 log.cl_error("slow command [%s] should return failure when "
                              "aborting", cmdline)
                 return -1
-        elif ccommand.cc_speed == clownfish_command.SPEED_ALWAYS_FAST:
+        elif ccommand.cc_speed == clownfish_command_common.SPEED_ALWAYS_FAST:
             if result.cr_exit_status != 0:
                 log.cl_error("quick command [%s] should succeed when "
                              "aborting", cmdline)

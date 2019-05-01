@@ -89,6 +89,7 @@ class ClownfishConnection(object):
         Thread to run a command line
         """
         # pylint: disable=broad-except,too-many-branches,too-many-statements
+        # pylint: disable=too-many-locals
         log = self.cc_command_log
         log.cl_debug("start thread of command line [%s]", cmdline)
         args = cmdline.split()
@@ -141,21 +142,37 @@ class ClownfishConnection(object):
             if operation == "":
                 current_args = args
 
-            command = current_args[0]
-            if command not in clownfish_command.CLOWNFISH_COMMNADS:
-                log.cl_stderr('unknown command [%s]', command)
-                retval = -1
+            subsystem_name = current_args[0]
+            if subsystem_name in clownfish_command.SUBSYSTEM_DICT:
+                subsystem = clownfish_command.SUBSYSTEM_DICT[subsystem_name]
+                if len(current_args) == 1:
+                    log.cl_stderr("please specify command after [%s]",
+                                  subsystem_name)
+                    retval = -1
+                    continue
+                else:
+                    command = current_args[1]
+                    options = current_args[2:]
             else:
-                ccommand = clownfish_command.CLOWNFISH_COMMNADS[command]
+                command = subsystem_name
+                subsystem = clownfish_command.SUBSYSTEM_NONE
+                options = current_args[1:]
+            if command not in subsystem.ss_command_dict:
+                log.cl_stderr('unknown command [%s] for subsystem [%s]',
+                              command, subsystem.ss_name)
+                retval = -1
+                continue
+            else:
+                ccommand = subsystem.ss_command_dict[command]
                 try:
-                    retval = ccommand.cc_function(self, current_args)
+                    retval = ccommand.cc_function(self, options)
                     log.cl_debug("finished cmdline part %s", current_args)
                 except Exception, err:
                     log.cl_stderr("failed to run cmdline part %s, exception: "
                                   "%s, %s",
                                   current_args, err, traceback.format_exc())
                     retval = -1
-                    break
+                    continue
 
         log.cl_debug("finished thread of command line [%s]", cmdline)
         log.cl_result.cr_exit_status = retval
@@ -269,7 +286,8 @@ class ClownfishConnection(object):
             clownfish_command.clownfish_interact_candidates(self,
                                                             request.cirt_line,
                                                             request.cirt_begidx,
-                                                            request.cirt_endidx)
+                                                            request.cirt_endidx,
+                                                            False)
         print candidates
         for candidate in candidates:
             reply.ciry_candidates.append(candidate)

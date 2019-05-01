@@ -550,8 +550,6 @@ class ClownfishInstance(object):
         if log.cl_abort or ret < 0:
             ret = -1
             log.cl_stderr("abort waiting high availability to be disabled")
-        elif ret == 0:
-            log.cl_stdout("disabled high availability")
         return ret
 
     def ci_encode(self, need_status, need_structure):
