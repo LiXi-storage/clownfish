@@ -51,7 +51,7 @@ EXTRA_DIST= \
 
 PYTHON_PROTOBUF = pyclownfish/clownfish_pb2.py
 PYLTEST_FILES = $(wildcard pyltest/*.py)
-PYTHON_LIB_FILES = $(wildcard pyclownfish/*.py pylcommon/*.p)
+PYTHON_LIB_FILES = $(wildcard pyclownfish/*.py pylcommon/*.py)
 PYTHON_LIB_FILES += $(PYLTEST_FILES)
 PYTHON_FILES = $(PYTHON_LIB_FILES) $(PYTHON_COMMANDS)
 PYTHON_CHECKS = $(PYTHON_FILES:%=%.python_checked)

@@ -157,6 +157,7 @@ class CommandLog(object):
     # pylint: disable=too-many-instance-attributes
     def __init__(self, name=None, resultsdir=None, simple_console=False,
                  record_consumer=False, condition=None):
+        # pylint: disable=too-many-arguments
         self.cl_name = name
         self.cl_result = utils.CommandResult()
         # Whether the command is about to abort
@@ -396,6 +397,7 @@ def get_log(name=None, resultsdir=None, simple_console=False,
     Get the log class
     If exclusive, the name should not be used for twice
     """
+    # pylint: disable=too-many-arguments
     log = CommandLog(name=name, resultsdir=resultsdir,
                      simple_console=simple_console,
                      record_consumer=record_consumer,

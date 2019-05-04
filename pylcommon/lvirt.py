@@ -519,7 +519,7 @@ NM_CONTROLLED=no
     ret = vm_copy_in(log, server_host, hostname, host_rules_fpath,
                      "/etc/udev/rules.d")
     if ret:
-         return -1
+        return -1
 
     if distro == ssh_host.DISTRO_RHEL6:
         network_string = 'NETWORKING=yes\n'
@@ -1134,7 +1134,7 @@ def target_index2name(log, target_index, bus_type=cstr.CSTR_BUS_SCSI):
 
 
 def lvirt_parse_sharedisks_configs(log, shared_disk_configs, shared_disks,
-                                  hosts, config_fpath):
+                                   hosts, config_fpath):
     """
     Parse shared disk configs.
     """
@@ -1418,8 +1418,8 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
                     cstr.CSTR_SHARED_DISKS, config_fpath)
     else:
         ret = lvirt_parse_sharedisks_configs(log, shared_disk_configs,
-                                            shared_disks, hosts,
-                                            config_fpath)
+                                             shared_disks, hosts,
+                                             config_fpath)
         if ret:
             log.cl_error("failed to parse [%s] in the config file [%s], "
                          "please correct it.",
@@ -1668,7 +1668,7 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
 
     for host in reboot_hosts:
         ret = lvirt_vm_reboot(log, host,
-                             hosts_servers_mapping[host.sh_hostname])
+                              hosts_servers_mapping[host.sh_hostname])
         if ret:
             log.cl_error("failed to reboot host [%s]",
                          host.sh_hostname)
@@ -1681,7 +1681,7 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
             log.cl_info("failed to destroy ZFS pools on host [%s], "
                         "reboot is needed", host.sh_hostname)
             ret = lvirt_vm_reboot(log, host,
-                                 hosts_servers_mapping[host.sh_hostname])
+                                  hosts_servers_mapping[host.sh_hostname])
             if ret:
                 log.cl_error("failed to reboot host [%s]",
                              host.sh_hostname)

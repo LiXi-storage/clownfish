@@ -8,6 +8,7 @@ Library for Lustre file system management
 import os
 import re
 import time
+import prettytable
 
 # Local libs
 from pylcommon import utils
@@ -20,7 +21,7 @@ EPEL_RPM_RHEL6_RPM = ("http://download.fedoraproject.org/pub/epel/6/x86_64/"
 # The directory path that has Lustre test script
 LUSTRE_TEST_SCRIPT_DIR = "/usr/lib64/lustre/tests"
 
-LUSTRE_SERVICE_TYPE_MGS = "MGS"
+LUSTRE_SERVICE_TYPE_MGT = "MGT"
 LUSTRE_SERVICE_TYPE_MDT = "MDT"
 LUSTRE_SERVICE_TYPE_OST = "OST"
 
@@ -159,7 +160,7 @@ class LustreServiceInstance(object):
                       instance_name, service_name, hostname)
         service = self.lsi_service
         mgs_nid_string = ""
-        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGS:
+        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGT:
             nids = service.ls_nids()
         else:
             nids = service.ls_lustre_fs.lf_mgs_nids()
@@ -240,7 +241,7 @@ class LustreServiceInstance(object):
                               retval.cr_stderr)
                 return -1
 
-        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGS:
+        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGT:
             type_argument = "--mgs"
             index_argument = ""
             fsname_argument = ""
@@ -508,7 +509,7 @@ class LustreServiceInstance(object):
                              "host [%s]", device, hostname)
                 return -1
 
-            if service_type == LUSTRE_SERVICE_TYPE_MGS:
+            if service_type == LUSTRE_SERVICE_TYPE_MGT:
                 match = mgs_regular.match(label)
                 if match:
                     log.cl_debug("MGS [%s] mounted on dir [%s] of host [%s]",
@@ -646,7 +647,7 @@ class LustreServiceStatus(object):
         """
         service = self.lss_service
         service_type = service.ls_service_type
-        not_mgs = bool(service_type != LUSTRE_SERVICE_TYPE_MGS)
+        not_mgs = bool(service_type != LUSTRE_SERVICE_TYPE_MGT)
         if not_mgs:
             lustrefs = service.ls_lustre_fs
         service_name = service.ls_service_name
@@ -679,25 +680,22 @@ class LustreServiceStatus(object):
         log.cl_info("fixed the service [%s]", service_name)
         return 0
 
-    def lss_encode(self, need_structure):
+    def lss_list(self, log):
         """
-        Return the encoded structure which can be dumped to Json/YAML string
+        Print information about the status of the service
         """
         instance = self.lss_mounted_instance
-        if instance is not None:
-            mounted_instance = instance.lsi_encode(False, None, need_structure)
-            mounted = cstr.CSTR_TRUE
+        log.cl_stdout("Service status:")
+        if instance is None:
+            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_FALSE)
         else:
-            mounted_instance = None
-            mounted = cstr.CSTR_FALSE
-        encoded = {cstr.CSTR_SERVICE_NAME: self.lss_service.ls_service_name,
-                   cstr.CSTR_UPDATE_TIME: self.lss_update_time,
-                   cstr.CSTR_IS_MOUNTED: mounted}
-
-        if need_structure and mounted == cstr.CSTR_TRUE:
-            encoded[cstr.CSTR_MOUNTED_INSTANCE] = mounted_instance
-
-        return encoded
+            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_TRUE)
+            log.cl_stdout("%-20s %s",
+                          "Mounted instance:",
+                          instance.lsi_service_instance_name)
+            log.cl_stdout("%-20s %s",
+                          "Update time:",
+                          self.lss_update_time)
 
 
 class LustreService(object):
@@ -713,7 +711,7 @@ class LustreService(object):
         self.ls_instances = {}
         self.ls_service_type = service_type
         self.ls_lock = rwlock.RWLock()
-        if service_type == LUSTRE_SERVICE_TYPE_MGS:
+        if service_type == LUSTRE_SERVICE_TYPE_MGT:
             assert index == 0
             self.ls_index_string = "MGS"
         elif service_type == LUSTRE_SERVICE_TYPE_MDT:
@@ -943,59 +941,45 @@ class LustreService(object):
 
         return ret
 
-    def ls_encode(self, need_status, status_funct, need_structure):
+    def ls_list(self, log, instance):
         """
-        Return the encoded structure which can be dumped to Json/YAML string
+        Print information about this service
         """
-        # pylint: disable=too-many-branches
-        service_name = self.ls_service_name
-        if need_status:
-            status = status_funct(service_name)
+        log.cl_stdout("%-20s %s",
+                      "Service name:",
+                      self.ls_service_name)
+        log.cl_stdout("%-20s %s",
+                      "Type:",
+                      self.ls_service_type)
+        log.cl_stdout("%-20s %s",
+                      "Backfs type:",
+                      self.ls_backfstype)
+        service_status = instance.ci_service_status
+        status = service_status.css_service_status(self.ls_service_name)
+        if status is None:
+            log.cl_stdout("%-20s %s",
+                          "Service status:",
+                          cstr.CSTR_UNKNOWN)
+        else:
+            log.cl_stdout("")
+            status.lss_list(log)
+        log.cl_stdout("")
 
-        if not need_structure:
-            if need_status:
-                if status is None:
-                    return {cstr.CSTR_SERVICE_NAME: service_name,
-                            cstr.CSTR_STATUS: None}
-                else:
-                    return status.lss_encode(False)
+        log.cl_stdout("Instances")
+        table = prettytable.PrettyTable()
+        table.field_names = ["Instance name", "Host", "Device", "mounted", "NID"]
+        for si in self.ls_instances.values():
+            if si == status.lss_mounted_instance:
+                mounted = cstr.CSTR_TRUE
             else:
-                instance_names = []
-                for instance in self.ls_instances.values():
-                    instance_names.append(instance.lsi_service_instance_name)
-                return instance_names
-
-        service_code = {}
-        instance_codes = []
-        for service_instance in self.ls_instances.values():
-            instance_code = service_instance.lsi_encode(need_status, status_funct,
-                                                        need_structure)
-            if need_status:
-                if status is None:
-                    instance_code[cstr.CSTR_IS_MOUNTED] = cstr.CSTR_UNKNOWN
-                else:
-                    if service_instance == status.lss_mounted_instance:
-                        mounted = cstr.CSTR_TRUE
-                    else:
-                        mounted = cstr.CSTR_FALSE
-                    instance_code[cstr.CSTR_IS_MOUNTED] = mounted
-            instance_codes.append(instance_code)
-
-        service_code[cstr.CSTR_INSTANCES] = instance_codes
-
-        if need_status:
-            if status is None:
-                service_code[cstr.CSTR_STATUS] = cstr.CSTR_UNKNOWN
-            else:
-                if status.lss_mounted_instance is None:
-                    service_code[cstr.CSTR_IS_MOUNTED] = cstr.CSTR_FALSE
-                else:
-                    service_code[cstr.CSTR_IS_MOUNTED] = cstr.CSTR_TRUE
-                service_code[cstr.CSTR_UPDATE_TIME] = status.lss_update_time
-
-        if self.ls_service_type != LUSTRE_SERVICE_TYPE_MGS:
-            service_code[cstr.CSTR_INDEX] = self.ls_index
-        return service_code
+                mounted = cstr.CSTR_FALSE
+            table.add_row([si.lsi_service_instance_name,
+                           si.lsi_host.sh_hostname,
+                           si.lsi_device,
+                           mounted,
+                           si.lsi_nid])
+        log.cl_stdout(table)
+        return 0
 
 
 class LustreMGS(LustreService):
@@ -1004,7 +988,7 @@ class LustreMGS(LustreService):
     """
     # pylint: disable=too-few-public-methods
     def __init__(self, log, mgs_id, backfstype):
-        super(LustreMGS, self).__init__(log, None, LUSTRE_SERVICE_TYPE_MGS, 0,
+        super(LustreMGS, self).__init__(log, None, LUSTRE_SERVICE_TYPE_MGT, 0,
                                         backfstype)
         # Key is file system name, value is LustreFilesystem
         self.lmgs_filesystems = {}
@@ -1059,8 +1043,10 @@ class LustreFilesystem(object):
         self.lf_osts = {}
         # Key is the service name, value is LustreMDT
         self.lf_mdts = {}
+        # Key is $HOSTNAME:$MNT, value is LustreClient
         self.lf_clients = {}
         self.lf_mgs = None
+        self.lf_service_dict = {}
         self.lf_mgs_mdt = None
         self.lf_lock = rwlock.RWLock()
         self.lf_qos = None
@@ -1091,6 +1077,7 @@ class LustreFilesystem(object):
             self.lf_mgs_mdt = mgs
         else:
             self.lf_mgs = mgs
+            self.lf_service_dict["%s-MGT" % self.lf_fsname] = mgs
         return 0
 
     def lf_ost_add(self, service_name, ost):
@@ -1100,6 +1087,7 @@ class LustreFilesystem(object):
         if service_name in self.lf_osts:
             return -1
         self.lf_osts[service_name] = ost
+        self.lf_service_dict[service_name] = ost
         return 0
 
     def lf_mdt_add(self, log, service_name, mdt):
@@ -1115,6 +1103,7 @@ class LustreFilesystem(object):
                              self.lf_fsname)
                 return -1
         self.lf_mdts[service_name] = mdt
+        self.lf_service_dict[service_name] = mdt
         return 0
 
     def lf_mgs_nids(self):
@@ -1182,19 +1171,11 @@ class LustreFilesystem(object):
             fs_lock_handle.rwh_release()
         return ret
 
-    def lf_services(self, mgs=False):
+    def lf_services(self):
         """
         Return the service list of this file system
         """
-        services = []
-        for mdt in self.lf_mdts.values():
-            services.append(mdt)
-        for ost in self.lf_osts.values():
-            services.append(ost)
-        if mgs:
-            if self.lf_mgs is not None:
-                services.append(self.lf_mgs)
-        return services
+        return self.lf_service_dict.values()
 
     def lf_oss_list(self):
         """
@@ -1338,7 +1319,7 @@ class LustreFilesystem(object):
             operation = "mount"
         else:
             operation = "umount"
-        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGS:
+        if service.ls_service_type == LUSTRE_SERVICE_TYPE_MGT:
             log.cl_error("%sing MGS using this interface is not allowed",
                          operation)
             return -1
@@ -1445,50 +1426,28 @@ class LustreFilesystem(object):
             mgs_lock_handle.rwh_release()
         return ret
 
-    def lf_encode(self, need_status, status_funct, need_structure):
+    def lf_list(self, log):
         """
-        Return the encoded structure which can be dumped to Json/YAML string
+        Print information about this filesystem
         """
-        if not need_structure:
-            if not need_status:
-                children = [cstr.CSTR_CLIENTS, cstr.CSTR_OSTS, cstr.CSTR_MDTS]
-                if self.lf_mgs is not None:
-                    children.append(cstr.CSTR_MGS)
-                children.append(cstr.CSTR_QOS)
-                return children
+        log.cl_stdout("Filesystem name: %20s", self.lf_fsname)
+        log.cl_stdout("")
 
-        encoded = {cstr.CSTR_FSNAME: self.lf_fsname}
+        log.cl_stdout("Services")
+        table = prettytable.PrettyTable()
+        table.field_names = ["Service", "Type"]
+        for service in self.lf_service_dict.values():
+            table.add_row([service.ls_service_name, service.ls_service_type])
+        log.cl_stdout(table.get_string())
+        log.cl_stdout("")
 
-        if self.lf_mgs is not None:
-            encoded[cstr.CSTR_MGS] = self.lf_mgs.ls_encode(need_status,
-                                                           status_funct,
-                                                           need_structure)
-
-        mdts = []
-        for mdt in self.lf_mdts.values():
-            mdts.append(mdt.ls_encode(need_status,
-                                      status_funct,
-                                      need_structure))
-        encoded[cstr.CSTR_MDTS] = mdts
-
-        osts = []
-        for ost in self.lf_osts.values():
-            osts.append(ost.ls_encode(need_status,
-                                      status_funct,
-                                      need_structure))
-        encoded[cstr.CSTR_OSTS] = osts
-
-        clients = []
+        log.cl_stdout("Clients")
+        table = prettytable.PrettyTable()
+        table.field_names = ["Host", "Mount point"]
         for client in self.lf_clients.values():
-            clients.append(client.lc_encode(need_status,
-                                            status_funct,
-                                            need_structure))
-        encoded[cstr.CSTR_CLIENTS] = clients
-        if self.lf_qos is not None:
-            qos = self.lf_qos
-            encoded[cstr.CSTR_QOS] = qos.cdqos_encode(need_status,
-                                                      need_structure)
-        return encoded
+            table.add_row([client.lc_host.sh_hostname, client.lc_mnt])
+        log.cl_stdout(table)
+        return 0
 
 
 class LustreMDTInstance(LustreServiceInstance):

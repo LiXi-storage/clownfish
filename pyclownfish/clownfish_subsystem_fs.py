@@ -8,7 +8,7 @@ Subsystem of filesystem
 from pyclownfish import clownfish_command_common
 
 CLOWNFISH_COMMNAD_FORMAT = "format"
-CLOWNFISH_COMMNAD_LIST = "ls"
+CLOWNFISH_COMMNAD_LIST = "list"
 CLOWNFISH_COMMNAD_MOUNT = "mount"
 CLOWNFISH_COMMNAD_UMOUNT = "umount"
 
@@ -18,9 +18,9 @@ CLOWNFISH_COMMNAD_DISABLE = "disable"
 CLOWNFISH_COMMNAD_ENABLE = "enable"
 
 
-def clownfish_command_filesystem_argument(connection, complete_status):
+def fs_argument(connection, complete_status):
     """
-    Return argument that can be enabled
+    Return file system names
     """
     # pylint: disable=unused-argument
     instance = connection.cc_instance
@@ -46,7 +46,6 @@ def clownfish_command_filesystem(connection, args, command):
         log.cl_error("unknown command [%s] to file system(s)", command)
         return -1
 
-    log = connection.cc_command_log
     if ((clownfish_command_common.CLOWNFISH_OPTION_SHORT_HELP in args) or
             (clownfish_command_common.CLOWNFISH_OPTION_LONG_HELP in args)):
         clownfish_command_filesystem_usage(log, command)
@@ -61,7 +60,9 @@ def clownfish_command_filesystem(connection, args, command):
     ret2 = 0
     for arg in args:
         if arg not in instance.ci_lustres:
-            log.cl_error("file system(s) is not configured", arg)
+            log.cl_error("filesystem [%s] is not configured", arg)
+            ret2 = -1
+            continue
         lustrefs = instance.ci_lustres[arg]
         if command == CLOWNFISH_COMMNAD_MOUNT:
             ret = lustrefs.lf_mount(log)
@@ -69,9 +70,9 @@ def clownfish_command_filesystem(connection, args, command):
                 log.cl_stderr("failed to mount file system [%s]",
                               lustrefs.lf_fsname)
         else:
-            ret = lustrefs.lf_mount(log)
+            ret = lustrefs.lf_umount(log)
             if ret:
-                log.cl_stderr("failed to mount file system [%s]",
+                log.cl_stderr("failed to umount file system [%s]",
                               lustrefs.lf_fsname)
         if ret < 0:
             ret2 = ret
@@ -86,7 +87,7 @@ def clownfish_command_umount(connection, args):
                                         CLOWNFISH_COMMNAD_UMOUNT)
 
 COMMAND = clownfish_command_common.ClownfishCommand(CLOWNFISH_COMMNAD_UMOUNT, clownfish_command_umount)
-COMMAND.cc_add_argument(clownfish_command_filesystem_argument)
+COMMAND.cc_add_argument(fs_argument)
 SUBSYSTEM_FS.ss_command_dict[CLOWNFISH_COMMNAD_UMOUNT] = COMMAND
 
 
@@ -98,5 +99,113 @@ def clownfish_command_mount(connection, args):
 
 COMMAND = clownfish_command_common.ClownfishCommand(CLOWNFISH_COMMNAD_MOUNT,
                                                     clownfish_command_mount)
-COMMAND.cc_add_argument(clownfish_command_filesystem_argument)
+COMMAND.cc_add_argument(fs_argument)
 SUBSYSTEM_FS.ss_command_dict[CLOWNFISH_COMMNAD_MOUNT] = COMMAND
+
+
+def fs_service_argument(connection, complete_status):
+    """
+    Return argument that can be enabled
+    """
+    instance = connection.cc_instance
+    fsnames = instance.ci_lustres.keys()
+    being_completed = complete_status.ccs_being_completed
+    if len(being_completed) <= 1:
+        # Impossible to have '$FSNAME-.+' pattern
+        return fsnames
+
+    fields = being_completed.split("-")
+    if len(fields) != 2:
+        # No '-' or multiple '-', not able to know fsname
+        return fsnames
+
+    fsname = fields[0]
+    if fsname not in fsnames:
+        return []
+
+    lustrefs = instance.ci_lustres[fsname]
+
+    services = []
+    # Now return all candidates of '$FSNAME-$SERVICE'
+    services += lustrefs.lf_service_dict.keys()
+    services += lustrefs.lf_clients.keys()
+    return services
+
+
+def fs_service_usage(log, command):
+    """
+    Run command on the filesystems
+    """
+    log.cl_stdout("""Usage: %s %s [-f] <filesystem|service>...
+Run %s on Lustre filesystem(s) or service(s)
+  -f: force running the command without asking for confirmation""" %
+                  (SUBSYSTEM_FS_NAME, command, command))
+
+
+def fs_service_list(connection, args):
+    """
+    Umount the filesystems
+    """
+    # pylint: disable=too-many-branches
+    log = connection.cc_command_log
+
+    if ((clownfish_command_common.CLOWNFISH_OPTION_SHORT_HELP in args) or
+            (clownfish_command_common.CLOWNFISH_OPTION_LONG_HELP in args)):
+        fs_service_usage(log, CLOWNFISH_COMMNAD_LIST)
+        return 0
+
+    instance = connection.cc_instance
+
+    if len(args) <= 0:
+        instance.ci_list_lustre(log)
+        return 0
+
+    ret2 = 0
+    for arg in args:
+        fields = arg.split("-")
+        if len(fields) == 1:
+            # Only fsname
+            fsname = fields[0]
+            service_name = None
+        elif len(fields) == 2:
+            fsname = fields[0]
+            service_name = fields[0] + "-" + fields[1]
+        else:
+            log.cl_stderr("invalid filesystem/service name [%s]",
+                          arg)
+            ret2 = -1
+            continue
+
+        if fsname not in instance.ci_lustres:
+            log.cl_error("filesystem [%s] doesnot exist", fsname)
+            ret2 = -1
+            continue
+
+        lustrefs = instance.ci_lustres[fsname]
+        if service_name is None:
+            ret = lustrefs.lf_list(log)
+            if ret:
+                log.cl_stderr("failed to list filesystem [%s]", fsname)
+                ret2 = ret
+        else:
+            if service_name in lustrefs.lf_service_dict:
+                service = lustrefs.lf_service_dict[service_name]
+                ret = service.ls_list(log, instance)
+                if ret:
+                    log.cl_stderr("failed to list service [%s]", service_name)
+                    ret2 = ret
+            elif service_name in lustrefs.lf_clients:
+                client = lustrefs.lf_clients[service_name]
+                ret = client.lc_list(log)
+                if ret:
+                    log.cl_stderr("failed to list service [%s]", service_name)
+                    ret2 = ret
+            else:
+                log.cl_stderr("service [%s] doesnot exist in filesystem [%s]",
+                              service_name, fsname)
+                ret2 = -1
+    return ret2
+
+COMMAND = clownfish_command_common.ClownfishCommand(CLOWNFISH_COMMNAD_LIST, fs_service_list)
+COMMAND.cc_add_argument(fs_service_argument)
+SUBSYSTEM_FS.ss_command_dict[CLOWNFISH_COMMNAD_LIST] = COMMAND

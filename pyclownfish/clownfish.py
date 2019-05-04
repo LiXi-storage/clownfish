@@ -9,6 +9,7 @@ Clownfish is an automatic management system for Lustre
 import threading
 import os
 import time
+import prettytable
 
 # Local libs
 from pylcommon import utils
@@ -194,11 +195,11 @@ class ClownfishServiceStatus(object):
                 fix_service = fixing_status.lss_service
                 fix_type = fix_service.ls_service_type
                 fix_name = fix_service.ls_service_name
-                fix_is_mgs = bool((fix_type == lustre.LUSTRE_SERVICE_TYPE_MGS) or
+                fix_is_mgs = bool((fix_type == lustre.LUSTRE_SERVICE_TYPE_MGT) or
                                   (fix_type == lustre.LUSTRE_SERVICE_TYPE_MDT and
                                    fix_service.lmdt_is_mgs))
 
-                is_mgs = bool((service_type == lustre.LUSTRE_SERVICE_TYPE_MGS) or
+                is_mgs = bool((service_type == lustre.LUSTRE_SERVICE_TYPE_MGT) or
                               (service_type == lustre.LUSTRE_SERVICE_TYPE_MDT and
                                service.lmdt_is_mgs))
 
@@ -552,40 +553,16 @@ class ClownfishInstance(object):
             log.cl_stderr("abort waiting high availability to be disabled")
         return ret
 
-    def ci_encode(self, need_status, need_structure):
+    def ci_list_lustre(self, log):
         """
-        Return the encoded structure which can be dumped to Json/YAML string
+        Print information about Lustre filesystems
         """
-        service_status = self.ci_service_status
-        status_funct = service_status.css_service_status
-
-        if not need_structure and not need_status:
-            return [cstr.CSTR_HOSTS, cstr.CSTR_MGS_LIST, cstr.CSTR_LUSTRES,
-                    cstr.CSTR_LAZY_PREPARE, cstr.CSTR_HIGH_AVAILABILITY]
-
-        mgs_list = []
-        for mgs in self.ci_mgs_dict.values():
-            mgs_list.append(mgs.ls_encode(need_status,
-                                          status_funct,
-                                          need_structure))
-        instance_code = {cstr.CSTR_MGS_LIST: mgs_list}
-
-        lustres = []
+        log.cl_stdout("Lustre filesystems")
+        table = prettytable.PrettyTable()
+        table.field_names = ["Filesystem name"]
         for lustrefs in self.ci_lustres.values():
-            lustres.append(lustrefs.lf_encode(need_status,
-                                              status_funct,
-                                              need_structure))
-        instance_code[cstr.CSTR_LUSTRES] = lustres
-        if need_structure:
-            instance_code[cstr.CSTR_LAZY_PREPARE] = self.ci_lazy_prepare
-
-        hosts = []
-        for host in self.ci_hosts.values():
-            hosts.append(host.lsh_encode(need_status,
-                                         status_funct,
-                                         need_structure))
-        instance_code[cstr.CSTR_HOSTS] = hosts
-        return instance_code
+            table.add_row([lustrefs.lf_fsname])
+        log.cl_stdout(table)
 
 
 def parse_qos_user_config(log, lustre_fs, qos_user_config, config_fpath,
