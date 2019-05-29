@@ -2136,16 +2136,7 @@ class SSHHost(object):
         """
         command = ("systemctl is-active %s" % (service_name))
         retval = self.sh_run(log, command)
-        if retval.cr_exit_status and retval.cr_stderr != "":
-            log.cl_error("failed to run command [%s] on host [%s], "
-                         "ret = [%d], stdout = [%s], stderr = [%s]",
-                         command,
-                         self.sh_hostname,
-                         retval.cr_exit_status,
-                         retval.cr_stdout,
-                         retval.cr_stderr)
-            return -1
-        elif retval.cr_stdout == "unknown\n":
+        if retval.cr_stdout == "unknown\n":
             return 0
         elif retval.cr_stdout == "inactive\n":
             return 0
@@ -2162,7 +2153,16 @@ class SSHHost(object):
                              retval.cr_stderr)
                 return -1
             return 0
-        log.cl_error("unkown output of command [%s] on host [%s]: [%s]",
+        elif retval.cr_exit_status and retval.cr_stderr != "":
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         self.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        log.cl_error("unknown output of command [%s] on host [%s]: [%s]",
                      command, self.sh_hostname, retval.cr_stdout)
         return -1
 
@@ -2172,7 +2172,9 @@ class SSHHost(object):
         """
         command = ("systemctl is-active %s" % (service_name))
         retval = self.sh_run(log, command)
-        if retval.cr_exit_status and retval.cr_stderr != "":
+        if retval.cr_stdout == "unknown\n":
+            return 0
+        elif retval.cr_exit_status and retval.cr_stderr != "":
             log.cl_error("failed to run command [%s] on host [%s], "
                          "ret = [%d], stdout = [%s], stderr = [%s]",
                          command,
@@ -2181,8 +2183,6 @@ class SSHHost(object):
                          retval.cr_stdout,
                          retval.cr_stderr)
             return -1
-        elif retval.cr_stdout == "unknown\n":
-            return 0
         else:
             command = ("systemctl disable %s" % (service_name))
             retval = self.sh_run(log, command)
