@@ -21,7 +21,7 @@ LVIRT_CONFIG_FNAME = "lvirt.conf"
 LVIRT_CONFIG = "/etc/" + LVIRT_CONFIG_FNAME
 LVIRT_LOG_DIR = "/var/log/lvirt"
 LVIRT_UDEV_RULES = "/etc/udev/rules.d/80-lvirt-name.rules"
-LVIRT_IMAGE_SHARED_SUBFIX = ".lvirt_shared"
+LVIRT_IMAGE_SHARED_SUBFIX = "_shared"
 
 
 class VirtTemplate(object):
