@@ -1613,7 +1613,7 @@ class SSHHost(object):
             return None
         return dominfos["State"]
 
-    def sh_virsh_detach_domblks(self, log, vm_hostname):
+    def sh_virsh_detach_domblks(self, log, vm_hostname, filter_string):
         """
         Detach the disk from the host
         """
@@ -1637,11 +1637,16 @@ class SSHHost(object):
                 continue
             device_type = fields[1]
             target_name = fields[2]
+            source = fields[3]
             if device_type != "disk":
                 continue
 
             # Don't detach the disks that can't be detached
             if target_name.startswith("hd"):
+                continue
+
+            # Filter the disks with image path
+            if source.find(filter_string) == -1:
                 continue
 
             log.cl_info("detaching disk [%s] of VM [%s]",

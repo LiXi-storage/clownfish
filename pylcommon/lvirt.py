@@ -21,6 +21,7 @@ LVIRT_CONFIG_FNAME = "lvirt.conf"
 LVIRT_CONFIG = "/etc/" + LVIRT_CONFIG_FNAME
 LVIRT_LOG_DIR = "/var/log/lvirt"
 LVIRT_UDEV_RULES = "/etc/udev/rules.d/80-lvirt-name.rules"
+LVIRT_IMAGE_SHARED_SUBFIX = ".lvirt_shared"
 
 
 class VirtTemplate(object):
@@ -54,10 +55,10 @@ class SharedDisk(object):
     Each shared disk has an object of this type
     """
     # pylint: disable=too-few-public-methods,too-many-arguments
-    def __init__(self, disk_id, server_host, server_host_id, image_fpath, size):
+    def __init__(self, disk_id, server_host, server_host_id, image_prefix, size):
         self.sd_disk_id = disk_id
         self.sd_server_host = server_host
-        self.sd_image_fpath = image_fpath
+        self.sd_image_fpath = image_prefix + LVIRT_IMAGE_SHARED_SUBFIX
         self.sd_size = size
         self.sd_server_host_id = server_host_id
         self.sd_targets = []
@@ -1697,7 +1698,8 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
     for host in vm_hosts:
         hostname = host.sh_hostname
         server_host = hosts_servers_mapping[hostname]
-        ret = server_host.sh_virsh_detach_domblks(log, hostname)
+        ret = server_host.sh_virsh_detach_domblks(log, hostname,
+                                                  LVIRT_IMAGE_SHARED_SUBFIX)
         if ret:
             log.cl_error("failed to deatch disks on VM [%s]",
                          hostname)
