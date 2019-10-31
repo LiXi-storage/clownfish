@@ -1966,16 +1966,16 @@ LUSTRE_RPM_TYPES = [RPM_KMOD, RPM_OSD_LDISKFS_MOUNT, RPM_OSD_LDISKFS,
 
 ES3_PATTERNS = {
     RPM_KERNEL: r"^(kernel-3.+\.x86_64\.rpm)$",
-    RPM_LUSTRE: r"^(lustre-2\.7.+\.x86_64\.rpm)$",
-    RPM_IOKIT: r"^(lustre-iokit-2\.7.+\.x86_64\.rpm)$",
-    RPM_KMOD: r"^(lustre-modules-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_LDISKFS: r"^(lustre-osd-ldiskfs-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_LDISKFS_MOUNT: r"^(lustre-osd-ldiskfs-mount-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_ZFS: r"^(lustre-osd-zfs-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_ZFS_MOUNT: r"^(lustre-osd-zfs-mount-2\.7.+\.x86_64\.rpm)$",
-    RPM_TESTS: r"^(lustre-tests-2\.7.+\.x86_64\.rpm)$",
-    RPM_MLNX_OFA: r"^(mlnx-ofa_kernel-3.+\.x86_64\.rpm)$",
-    RPM_MLNX_KMOD: r"^(mlnx-ofa_kernel-modules-3.+\.x86_64\.rpm)$"}
+    RPM_LUSTRE: r"^(lustre-[A-Za-z]+-2\.7.+\.x86_64\.rpm)$",
+    RPM_IOKIT: r"^(lustre-[A-Za-z]+-iokit-2\.7.+\.x86_64\.rpm)$",
+    RPM_KMOD: r"^(lustre-[A-Za-z]+-modules-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_LDISKFS: r"^(lustre-[A-Za-z]+-osd-ldiskfs-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_LDISKFS_MOUNT: r"^(lustre-[A-Za-z]+-osd-ldiskfs-mount-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_ZFS: r"^(lustre-[A-Za-z]+-osd-zfs-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_ZFS_MOUNT: r"^(lustre-[A-Za-z]+-osd-zfs-mount-2\.7.+\.x86_64\.rpm)$",
+    RPM_TESTS: r"^(lustre-[A-Za-z]+-tests-2\.7.+\.x86_64\.rpm)$",
+    RPM_MLNX_OFA: r"^(mlnx-ofa_kernel-\d.+\.x86_64\.rpm)$",
+    RPM_MLNX_KMOD: r"^(mlnx-ofa_kernel-modules-.+\.x86_64\.rpm)$"}
 
 LUSTRE_VERSION_ES3 = LustreVersion("es3",
                                    r".+\.x86_64_g(.+)\.x86_64\.rpm$",
@@ -2081,8 +2081,11 @@ class LustreRPMs(object):
                 return -1
 
         if len(possible_versions) != 1:
-            log.cl_error("the possible RPM version is %d, should be 1",
-                         len(possible_versions))
+            version_names = []
+            for possible_version in possible_versions:
+                version_names.append(possible_version.lv_name)
+            log.cl_error("the possible RPM version under dir [%s] is [%d]: %s, should be 1",
+                         self.lr_rpm_dir, len(possible_versions), version_names)
             return -1
         self.lr_lustre_version = possible_versions[0]
 

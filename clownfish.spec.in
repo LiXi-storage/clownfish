@@ -36,6 +36,7 @@ Clownfish management system of Lustre file system.
 %package pylcommon
 Summary: Python Library of Lustre - General Python Library to manage Lustre
 Provides: clownfish-pylcommon = %{version}-%{release}
+Requires: python-prettytable
 Group: Applications/System
 
 %description pylcommon

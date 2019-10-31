@@ -82,10 +82,13 @@ class SharedDisk(object):
             return -1
         return 0
 
-    def sd_add_target(self, target):
+    def sd_add_target(self, log, target):
         """
         Add a host which shares this disk
         """
+        log.cl_info("adding target [%s] on host [%s] to device [%s]",
+                    target.st_target_name, target.st_host.sh_hostname,
+                    self.sd_disk_id)
         self.sd_targets.append(target)
 
     def _sd_share_target(self, log, target):
@@ -1435,6 +1438,7 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
 
     vm_hosts = []
     hosts_servers_mapping = dict()
+    shared_disk_ids_mapping = dict()
     hosts_string = ""
     for vm_host_config in vm_host_configs:
         hostname = utils.config_value(vm_host_config, cstr.CSTR_HOSTNAME)
@@ -1512,44 +1516,7 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
         hosts_servers_mapping[hostname] = template.vt_server_host
         shared_disk_ids = utils.config_value(vm_host_config,
                                              cstr.CSTR_SHARED_DISK_IDS)
-        if shared_disk_ids is None or shared_disk_configs is None:
-            continue
-
-        command = ("> %s" % LVIRT_UDEV_RULES)
-        retval = vm_host.sh_run(log, command)
-        if retval.cr_exit_status:
-            log.cl_error("failed to run command [%s] on host [%s], "
-                         "ret = [%d], stdout = [%s], stderr = [%s]",
-                         command,
-                         server_host.sh_hostname,
-                         retval.cr_exit_status,
-                         retval.cr_stdout,
-                         retval.cr_stderr)
-            return -1
-
-        target_index = 0
-        for shared_disk_id in shared_disk_ids:
-            if shared_disk_id not in shared_disks:
-                log.cl_error("shared disk with ID [%s] is not configured, "
-                             "please correct file [%s]",
-                             shared_disk_id, config_fpath)
-                return -1
-
-            shared_disk = shared_disks[shared_disk_id]
-
-            if template.vt_server_host_id != shared_disk.sd_server_host_id:
-                log.cl_error("Shared disk with ID [%s] is not configured "
-                             "on host with ID [%s]. It is on host with ID "
-                             "[%s] instead, thus can't share it on VM [%s]. "
-                             "Please correct file [%s].",
-                             shared_disk_id, template.vt_server_host_id,
-                             shared_disk.sd_server_host_id, hostname,
-                             config_fpath)
-                return -1
-            target_name = target_index2name(log, target_index)
-            shared_target = SharedTarget(vm_host, target_name)
-            shared_disk.sd_add_target(shared_target)
-            target_index += 1
+        shared_disk_ids_mapping[hostname] = shared_disk_ids
 
     host_configs = utils.config_value(config, cstr.CSTR_HOSTS)
     if host_configs is not None:
@@ -1675,8 +1642,8 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
                          host.sh_hostname)
             return -1
 
-    # Destroy all ZFS pool
     for host in vm_hosts:
+        # Destroy all ZFS pool
         ret = host.sh_destroy_zfs_pools(log)
         if ret:
             log.cl_info("failed to destroy ZFS pools on host [%s], "
@@ -1694,8 +1661,7 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
                             "after reboot", host.sh_hostname)
                 return -1
 
-    # Cleanup all shared disk first
-    for host in vm_hosts:
+        # Detach all shared disks
         hostname = host.sh_hostname
         server_host = hosts_servers_mapping[hostname]
         ret = server_host.sh_virsh_detach_domblks(log, hostname,
@@ -1704,6 +1670,55 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
             log.cl_error("failed to deatch disks on VM [%s]",
                          hostname)
             return -1
+
+        
+        # Generate the targets of shared disks
+        shared_disk_ids = shared_disk_ids_mapping[hostname]
+        if shared_disk_ids is None or shared_disk_configs is None:
+            continue
+
+        command = ("> %s" % LVIRT_UDEV_RULES)
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         server_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+        target_index = 0
+        for shared_disk_id in shared_disk_ids:
+            if shared_disk_id not in shared_disks:
+                log.cl_error("shared disk with ID [%s] is not configured, "
+                             "please correct file [%s]",
+                             shared_disk_id, config_fpath)
+                return -1
+
+            shared_disk = shared_disks[shared_disk_id]
+
+            if template.vt_server_host_id != shared_disk.sd_server_host_id:
+                log.cl_error("shared disk with ID [%s] is not configured "
+                             "on host with ID [%s]. It is on host with ID "
+                             "[%s] instead, thus can't share it on VM [%s]. "
+                             "Please correct file [%s].",
+                             shared_disk_id, template.vt_server_host_id,
+                             shared_disk.sd_server_host_id, hostname,
+                             config_fpath)
+                return -1
+
+            while True:
+                target_name = target_index2name(log, target_index)
+                target_index += 1
+                command = "ls /dev/%s" % target_name
+                retval = host.sh_run(log, command)
+                # If the device exists, use another device
+                if retval.cr_exit_status:
+                    break
+            shared_target = SharedTarget(host, target_name)
+            shared_disk.sd_add_target(log, shared_target)
 
     for shared_disk in shared_disks.values():
         ret = shared_disk.sd_share(log)
