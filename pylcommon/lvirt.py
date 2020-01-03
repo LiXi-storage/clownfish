@@ -832,6 +832,18 @@ EOF
                      server_host.sh_hostname)
         return -1
 
+    command = "yum install virt-install -y"
+    retval = server_host.sh_run(log, command)
+    if retval.cr_exit_status:
+        log.cl_error("failed to run command [%s] on host [%s], "
+                     "ret = [%d], stdout = [%s], stderr = [%s]",
+                     command,
+                     server_host.sh_hostname,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+        return -1
+
     command = ("virt-install --vcpus=1 --os-type=linux --hvm "
                "--connect=qemu:///system --accelerate --serial pty -v "
                "--nographics --noautoconsole --wait=-1 --force ")
