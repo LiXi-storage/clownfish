@@ -1966,14 +1966,14 @@ LUSTRE_RPM_TYPES = [RPM_KMOD, RPM_OSD_LDISKFS_MOUNT, RPM_OSD_LDISKFS,
 
 ES3_PATTERNS = {
     RPM_KERNEL: r"^(kernel-3.+\.x86_64\.rpm)$",
-    RPM_LUSTRE: r"^(lustre-[A-Za-z]+-2\.7.+\.x86_64\.rpm)$",
-    RPM_IOKIT: r"^(lustre-[A-Za-z]+-iokit-2\.7.+\.x86_64\.rpm)$",
-    RPM_KMOD: r"^(lustre-[A-Za-z]+-modules-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_LDISKFS: r"^(lustre-[A-Za-z]+-osd-ldiskfs-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_LDISKFS_MOUNT: r"^(lustre-[A-Za-z]+-osd-ldiskfs-mount-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_ZFS: r"^(lustre-[A-Za-z]+-osd-zfs-2\.7.+\.x86_64\.rpm)$",
-    RPM_OSD_ZFS_MOUNT: r"^(lustre-[A-Za-z]+-osd-zfs-mount-2\.7.+\.x86_64\.rpm)$",
-    RPM_TESTS: r"^(lustre-[A-Za-z]+-tests-2\.7.+\.x86_64\.rpm)$",
+    RPM_LUSTRE: r"^(lustre+-2\.7.+\.x86_64\.rpm)$",
+    RPM_IOKIT: r"^(lustre+-iokit-2\.7.+\.x86_64\.rpm)$",
+    RPM_KMOD: r"^(lustre+-modules-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_LDISKFS: r"^(lustre+-osd-ldiskfs-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_LDISKFS_MOUNT: r"^(lustre-osd-ldiskfs-mount-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_ZFS: r"^(lustre+-osd-zfs-2\.7.+\.x86_64\.rpm)$",
+    RPM_OSD_ZFS_MOUNT: r"^(lustre-osd-zfs-mount-2\.7.+\.x86_64\.rpm)$",
+    RPM_TESTS: r"^(lustre-tests-2\.7.+\.x86_64\.rpm)$",
     RPM_MLNX_OFA: r"^(mlnx-ofa_kernel-\d.+\.x86_64\.rpm)$",
     RPM_MLNX_KMOD: r"^(mlnx-ofa_kernel-modules-.+\.x86_64\.rpm)$"}
 

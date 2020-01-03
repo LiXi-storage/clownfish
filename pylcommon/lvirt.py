@@ -290,11 +290,9 @@ def vm_copy_in(log, server_host, vm, src, dest):
     command = ("virt-copy-in -d %s %s %s" % (vm, src, dest))
     retval = server_host.sh_run(log, command)
     if retval.cr_exit_status:
-        log.cl_error("failed to copy [%s] from host_server [%s] into "
-                     "host_vm [%s], ret = [%d], stdout = [%s], stderr = [%s]",
-                     src,
-                     server_host.sh_hostname,
-                     vm,
+        log.cl_error("failed to run command [%s] on host [%s], ret = [%d], "
+                     "stdout = [%s], stderr = [%s]",
+                     command, server_host.sh_hostname,
                      retval.cr_exit_status,
                      retval.cr_stdout,
                      retval.cr_stderr)
@@ -306,29 +304,23 @@ def vm_copy_in(log, server_host, vm, src, dest):
         command = ("virsh domblklist %s --details | grep disk | awk '{print $4}'" % vm)
         retval = server_host.sh_run(log, command)
         if retval.cr_exit_status:
-            log.cl_error("failed to get block list of vm [%s] on host_server "
-                         "host_vm [%s], ret = [%d], stdout = [%s], stderr = [%s]",
-                         vm,
-                         server_host.sh_hostname,
+            log.cl_error("failed to run command [%s] on host [%s], ret = [%d], "
+                         "stdout = [%s], stderr = [%s]",
+                         command, server_host.sh_hostname,
                          retval.cr_exit_status,
                          retval.cr_stdout,
                          retval.cr_stderr)
             return -1
+
         images = retval.cr_stdout.splitlines()
         for image in images:
             command = ("virt-copy-in -i %s %s %s" % (image, src, dest))
             retval = server_host.sh_run(log, command)
             if retval.cr_exit_status == 0:
                 return 0
-        log.cl_error("failed to copy [%s] from host_server [%s] into "
-                     "host_vm [%s]:[%s], ret = [%d], stdout = [%s], stderr = [%s]",
-                     src,
-                     server_host.sh_hostname,
-                     vm,
-                     images,
-                     retval.cr_exit_status,
-                     retval.cr_stdout,
-                     retval.cr_stderr)
+
+        log.cl_error("failed to copy file [%s] from server [%s] into "
+                     "[%s] of vm [%s]", src, server_host.sh_hostname, dest, vm)
     return ret
 
 
@@ -840,9 +832,9 @@ EOF
                      server_host.sh_hostname)
         return -1
 
-    command = ("virt-install --vcpus=1 --os-type=linux "
-               "--hvm --connect=qemu:///system "
-               "--accelerate --serial pty -v --nographics --noautoconsole --wait=-1 ")
+    command = ("virt-install --vcpus=1 --os-type=linux --hvm "
+               "--connect=qemu:///system --accelerate --serial pty -v "
+               "--nographics --noautoconsole --wait=-1 --force ")
     command += "--ram=%s " % ram_size
     for network_config in network_configs:
         command += ("--network=%s " % (network_config["virt_install_option"]))
@@ -1671,7 +1663,6 @@ def lvirt_vm_install(log, workspace, config, config_fpath):
                          hostname)
             return -1
 
-        
         # Generate the targets of shared disks
         shared_disk_ids = shared_disk_ids_mapping[hostname]
         if shared_disk_ids is None or shared_disk_configs is None:
