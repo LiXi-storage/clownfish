@@ -23,7 +23,7 @@ CLOWNFISH_INSTALL_DEPENDENT_RPMS = ["rsync",
                                     "pytz",
                                     "python-dateutil",
                                     "zeromq3",
-                                    "python-zmq",
+                                    "python2-zmq",
                                     "protobuf-python",
                                     "python-requests",
                                     "python-prettytable"]

@@ -14,7 +14,7 @@ CLOWNFISH_DEPENDENT_RPMS = ["corosync",
                             "pytz",
                             "python-dateutil",
                             "zeromq3",
-                            "python-zmq",
+                            "python2-zmq",
                             "protobuf-python",
                             "python-requests",
                             "python-prettytable"]

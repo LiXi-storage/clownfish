@@ -116,15 +116,13 @@ def clownfish_command_help(connection, args):
     log = connection.cc_command_log
     if len(args) <= 0:
         log.cl_stdout("""Command action:
-  format_all           mount all Lustre filesystems and MGTs
+  format_all           format all Lustre filesystems and MGTs
   h                    print this menu
   h <cmdline>          print help of command line
   prepare              prepare all hosts
   q                    quit
   fs mount             mount Lustre filesystem(s)
   fs umount            umount Lustre filesystem(s)
-  mgt mount            mount MGT(s)
-  mgt umount           umount MGT(s)
   mount_all            mount all Lustre filesystems and MGTs
   option disable       disable option(s)
   option enable        enable option(s)
@@ -162,7 +160,10 @@ Print the help info of command line
                           cmdline)
             return -1
     elif len(args) == 1:
-        subsystem = args2subsystem(args)
+        subsystem = name2subsystem(args[0])
+        if subsystem is None:
+            log.cl_stderr("no subsystem or global command with name [%s]", args[0])
+            return -1
         return subsystem.ss_help_all(connection)
     else:
         log.cl_stderr("""command line [%s] is not valid""",
@@ -373,17 +374,14 @@ def clownfish_interact_candidates(connection, line, begidx, endidx, is_help):
     return final_candidates
 
 
-def args2subsystem(args):
+def name2subsystem(subsystem_name):
     """
-    Find the subsystem from arguments
+    Find the subsystem from the name
     """
-    if len(args) == 0:
-        return None
-    subsystem_name = args[0]
     if subsystem_name in SUBSYSTEM_DICT:
         return SUBSYSTEM_DICT[subsystem_name]
     else:
-        return SUBSYSTEM_NONE
+        return None
 
 
 def args2command(args):

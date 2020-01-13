@@ -2,20 +2,90 @@
 .SH NAME
 clf \- Clownfish client (Lustre management program)
 .SH SYNOPSIS
-.B clf [-P \fIport\fR] <\fIhost\fR> [\fIcommand\fR]
+.B clf [-h] [-P \fIport\fR] <\fIhost\fR> [\fIcmdline\fR]
 .SH DESCRIPTION
 .B clf
 (Clownfish client) is a program for logging into a Clownfish server and for
 executing Lustre management commands on that server.
 .PP
-If \fcommand\fR is specified, it is executed on Clownfish server directly
+If \fI-h\fR is specified, the command will print help information and quit.
+.PP
+If \fIcmdline\fR is specified, it is executed on Clownfish server directly
 instead of using interactive mode.
-.SH OPTIONS
+.PP
+Following commands can be used in \fIcmdline\fR of \fBclf\fR:
 .TP
-.BR "-port \fIport\fR"
+.BI format_all
+Format all Lustre filesystems and MGTs.
+.TP
+.BI fs
+Run one of the following commands to a Lustre file system or a service of a
+Lustre file system.
+.RS
+.TP
+.BI h
+Print the help information
+.TP
+.BI list
+Show the status of a Lustre file system or the status a service of a Lustre file
+system
+.TP
+.BI mount
+Mount all of the services of a Lustre file system
+.TP
+.BI umount
+Umount all of the services of a Lustre file system
+.RE
+.TP
+.BI "h [-a] [\fIcmdline\fR]"
+Print the help information. If \fIcmdline\fR is specified, its specific help
+information will be printed.
+.RS
+.TP
+.BI -a
+Print the help information of all commands.
+.RE
+.TP
+.BI mount_all
+Mount all Lustre services including MGTs, MDTs and OSTs.
+.TP
+.BI "option enable|disable \fIconfig\fR"
+Enable or disable option \fIconfig\fR. Following options are supported:
+.RS
+.TP
+.BI high_availability
+If high availability is disabled, Clownfish will not try to start the stopped Lustre
+service.
+.TP
+.BI lazy_prepare
+If high availability is enabled, Clownfish will try to avoid unnecessary
+reinstallation of Lustre RPMs to speed up the later \fBprepare\fR command.
+.RE
+.TP
+.BI prepare
+Prepare and cleanup all hosts to make them ready to run Lustre services. That
+includes umounting existing Lustre services, installing Lustre RPMs and
+corresponding kernel RPMs, rebooting to the specific kernel, health checking
+and so on.
+.TP
+.BI q
+Disconnect from server and quit. This is only useful under interactive mode.
+.TP
+.BI retval
+Print the exit value of last command. This is only useful under interactive
+mode.
+.TP
+.BI umount_all
+Umount all Lustre services including MGTs, MDTs and OSTs.
+.SH EXAMPLES
+.TP
+.BR "-P \fIport\fR"
 Port to connect to on the Clownfish server. The default port of Clownfish
 server is 3002.
 .SH EXAMPLES
+.TP
+.B $ clf -h
+Print help information and quit.
 .TP
 .B $ clf localhost
 Connect to Clownfish server running on the local host using default port 3002.
