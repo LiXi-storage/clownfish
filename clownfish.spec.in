@@ -121,7 +121,7 @@ mkdir -p $RPM_BUILD_ROOT%{_bindir}
 mkdir -p $RPM_BUILD_ROOT%{_libdir}/clownfish
 mkdir -p $RPM_BUILD_ROOT%{python_sitelib}
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/yum.repos.d
-cp clownfish_console \
+cp clf \
 	clownfish_install \
 	clownfish_server \
 	clownfish_test \
@@ -160,7 +160,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %{python_sitelib}/pyclownfish
-%{_bindir}/clownfish_console
+%{_bindir}/clf
 %{_bindir}/clownfish_install
 %{_bindir}/clownfish_server
 %{_bindir}/clownfish_test

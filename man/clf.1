@@ -1,0 +1,37 @@
+.TH clf 1 "2020 Jan 13" Clownfish "Clownfish Utilities"
+.SH NAME
+clf \- Clownfish client (Lustre management program)
+.SH SYNOPSIS
+.B clf [-P \fIport\fR] <\fIhost\fR> [\fIcommand\fR]
+.SH DESCRIPTION
+.B clf
+(Clownfish client) is a program for logging into a Clownfish server and for
+executing Lustre management commands on that server.
+.PP
+If \fcommand\fR is specified, it is executed on Clownfish server directly
+instead of using interactive mode.
+.SH OPTIONS
+.TP
+.BR "-port \fIport\fR"
+Port to connect to on the Clownfish server. The default port of Clownfish
+server is 3002.
+.SH EXAMPLES
+.TP
+.B $ clf localhost
+Connect to Clownfish server running on the local host using default port 3002.
+.TP
+.B $ clf -P 3001 localhost
+Connect to Clownfish server running on the local host using port 3001.
+.TP
+.B $ clf -P 3001 192.168.1.2
+Connect to Clownfish server running on the local host using port 3001.
+.TP
+.B $ clf -P 3001 192.168.1.2 h
+Connect to Clownfish server running on the local host using port 3001 and
+run command "h".
+.SH AUTHOR
+The
+.B clf
+command is part of the Clownfish (Lustre management utilities).
+.SH SEE ALSO
+.BR clownfish_server (1)

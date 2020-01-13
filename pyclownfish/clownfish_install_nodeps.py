@@ -26,6 +26,7 @@ COROSYNC_CONFIG_DIR = "/etc/corosync/"
 CLOWNFISH_COROSYNC_CONFIG = COROSYNC_CONFIG_DIR + CLOWNFISH_COROSYNC_FNAME
 CLOWNFISH_COROSYNC_AUTHKEY = COROSYNC_CONFIG_DIR + CLOWNFISH_AUTHKEY_FNAME
 CLOWNFISH_ISO_DIR = "/mnt/clownfish_ha/"
+CLOWNFISH_CONSOLE_CMD = "clf"
 
 
 def pcs_check_resource(log, host, res_name):
@@ -365,7 +366,7 @@ quorum {
         if running_host is None:
             return ret
 
-        command = "clownfish_console %s pwd" % self.ccl_virtual_ip
+        command = "%s %s pwd" % (CLOWNFISH_CONSOLE_CMD, self.ccl_virtual_ip)
         for host in self.ic_hosts:
             retval = host.sh_run(log, command)
             if retval.cr_exit_status != 0:
@@ -487,8 +488,8 @@ quorum {
             return -1
         log.cl_info("Clownfish server serivce is running on host [%s] currently",
                     running_host.sh_hostname)
-        log.cl_info("Please connect to it using command [clownfish_console %s]",
-                    self.ccl_virtual_ip)
+        log.cl_info("Please connect to it using command [%s %s]",
+                    CLOWNFISH_CONSOLE_CMD, self.ccl_virtual_ip)
         return 0
 
 

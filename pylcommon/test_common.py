@@ -113,7 +113,7 @@ def _start_install(log, workspace, install_server, mnt_path,
 
     package_dir = mnt_path + "/" + cstr.CSTR_PACKAGES
     command = ("rpm -ivh %s/clownfish-pylcommon-*.x86_64.rpm "
-               "%s/clownfish-1.*.x86_64.rpm" %
+               "%s/clownfish-1.*.x86_64.rpm --nodeps" %
                (package_dir, package_dir))
     retval = install_server.sh_run(log, command)
     if retval.cr_exit_status:

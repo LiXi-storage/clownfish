@@ -25,7 +25,8 @@ CLOWNFISH_INSTALL_DEPENDENT_RPMS = ["rsync",
                                     "zeromq3",
                                     "python-zmq",
                                     "protobuf-python",
-                                    "python-requests"]
+                                    "python-requests",
+                                    "python-prettytable"]
 
 
 def iso_path_in_config(log, host, config_fpath):

@@ -20,7 +20,7 @@ example_configs/clownfish/clownfish_test.conf: \
 	./gen_clownfish_test example_configs/clownfish/clownfish_test.conf
 
 PYTHON_COMMANDS = \
-	clownfish_console \
+	clf \
 	clownfish_install \
 	clownfish_server \
 	clownfish_test \
