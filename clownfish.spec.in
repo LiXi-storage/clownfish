@@ -121,6 +121,7 @@ mkdir -p $RPM_BUILD_ROOT%{_bindir}
 mkdir -p $RPM_BUILD_ROOT%{_libdir}/clownfish
 mkdir -p $RPM_BUILD_ROOT%{python_sitelib}
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/yum.repos.d
+mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
 cp clf \
 	clownfish_install \
 	clownfish_server \
@@ -153,6 +154,7 @@ cp -a example_configs/clownfish/clownfish_install.conf \
     install -m 0744 -D init.d/clownfish_server \
         $RPM_BUILD_ROOT%{_sysconfdir}/rc.d/init.d/clownfish_server
 %endif
+install -g 0 -o 0 -m 0644 man/clf.1 $RPM_BUILD_ROOT%{_mandir}/man1/
 
 
 %clean
@@ -172,6 +174,7 @@ rm -rf $RPM_BUILD_ROOT
 %else
     %{_sysconfdir}/rc.d/init.d/clownfish_server
 %endif
+%{_mandir}/man1/clf.1*
 
 %files pylcommon
 %{python_sitelib}/pylcommon

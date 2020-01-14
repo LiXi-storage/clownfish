@@ -33,21 +33,22 @@ PYTHON_COMMANDS = \
 
 EXTRA_DIST= \
 	$(PYTHON_COMMANDS) \
+	.pylintrc \
+	clownfish.spec \
 	detect-distro.sh \
 	example_configs/clownfish/clownfish_install.conf \
 	example_configs/clownfish/seperate_mgs/clownfish.conf \
 	example_configs/clownfish/seperate_mgs/lvirt.conf \
 	example_configs/ltest/ltest_scheduler.conf \
 	init.d/* \
-	clownfish.spec \
+	man/* \
 	pybuild/*.py \
-	systemd/* \
 	pyclownfish/*.py \
 	pyclownfish/clownfish.proto \
 	pyclownfish/.pylintrc \
 	pylcommon/*.py \
 	pyltest/*.py \
-	.pylintrc
+	systemd/*
 
 PYTHON_PROTOBUF = pyclownfish/clownfish_pb2.py
 PYLTEST_FILES = $(wildcard pyltest/*.py)
