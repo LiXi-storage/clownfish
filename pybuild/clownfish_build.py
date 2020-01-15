@@ -138,7 +138,7 @@ def download_dependent_rpms(log, host, packages_dir):
             if match:
                 rpm_fname = match.group("rpm_fname")
             else:
-                log.cl_error("unkown output [%s] of repotrack on host "
+                log.cl_error("unknown output [%s] of repotrack on host "
                              "[%s], stdout = [%s]",
                              line, host.sh_hostname, retval.cr_stdout)
                 return -1
@@ -151,6 +151,32 @@ def download_dependent_rpms(log, host, packages_dir):
                      "removing it", fname, packages_dir)
         ret = host.sh_remove_file(log, fpath)
         if ret:
+            return -1
+
+    # Check the wanted RPMs are all downloaded
+    command = ("ls %s" % (packages_dir))
+    retval = host.sh_run(log, command)
+    if retval.cr_exit_status:
+        log.cl_error("failed to run command [%s] on host [%s], "
+                     "ret = [%d], stdout = [%s], stderr = [%s]",
+                     command,
+                     host.sh_hostname,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+        return -1
+    new_rpm_fnames = retval.cr_stdout.split()
+    for rpm_name in dependent_rpms:
+        rpm_pattern = (r"^%s.*\.rpm$" % rpm_name)
+        rpm_regular = re.compile(rpm_pattern)
+        match = False
+        for new_rpm_fname in new_rpm_fnames:
+            match = rpm_regular.match(new_rpm_fname)
+            if match:
+                break
+        if not match:
+            log.cl_error("RPM [%s] is needed but not downloaded in directory [%s]",
+                         rpm_name, packages_dir)
             return -1
     return 0
 

@@ -237,8 +237,8 @@ class SSHHost(object):
         no_lsb = False
         ret = self.sh_run(log, "which lsb_release")
         if ret.cr_exit_status != 0:
-            log.cl_warning("lsb_release is needed on host [%s] for accurate "
-                           "distro identification", self.sh_hostname)
+            log.cl_debug("lsb_release is needed on host [%s] for accurate "
+                         "distro identification", self.sh_hostname)
             no_lsb = True
 
         if no_lsb:
@@ -1769,7 +1769,7 @@ class SSHHost(object):
         """
         Check whether the Internet connection works well
         """
-        ret = self.sh_check_network_connection(log, "www.bing.com")
+        ret = self.sh_check_network_connection(log, "www.bing.com", quiet=True)
         if ret:
             return 0
 
