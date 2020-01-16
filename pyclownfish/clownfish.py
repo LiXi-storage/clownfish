@@ -17,6 +17,7 @@ from pylcommon import parallel
 from pylcommon import lustre
 from pylcommon import cstr
 from pyclownfish import clownfish_qos
+from pyclownfish import corosync
 
 CLOWNFISH_STATUS_CHECK_INTERVAL = 1
 
@@ -121,15 +122,21 @@ class ClownfishServiceStatus(object):
         """
         instance = self.css_instance
 
-        for mgs in instance.ci_mgs_dict.values():
-            utils.thread_start(self.css_status_thread,
-                               (mgs, ))
+        service_dict = {}
 
         for lustrefs in instance.ci_lustres.values():
             services = lustrefs.lf_services()
             for service in services:
+                if service.ls_service_name not in service_dict:
+                    service_dict[service.ls_service_name] = True
+                    utils.thread_start(self.css_status_thread,
+                                       (service, ))
+
+        for mgs in instance.ci_mgs_dict.values():
+            if mgs.ls_service_name not in service_dict:
                 utils.thread_start(self.css_status_thread,
-                                   (service, ))
+                                   (mgs, ))
+                service_dict[mgs.ls_service_name] = True
 
     def css_fix_thread(self, thread_id):
         """
@@ -164,7 +171,7 @@ class ClownfishServiceStatus(object):
             # When HA is disabled, this thread does nothing
             self.css_fix_thread_waiting_number += 1
             self.css_problem_condition.notifyAll()
-            while ((not instance.ci_high_availability) or
+            while ((not instance.ci_native_ha) or
                    (len(self.css_problem_status_dict) == 0)):
                 self.css_problem_condition.wait()
             self.css_fix_thread_waiting_number -= 1
@@ -289,7 +296,7 @@ class ClownfishInstance(object):
     # pylint: disable=too-few-public-methods,too-many-instance-attributes
     # pylint: disable=too-many-arguments,too-many-public-methods
     def __init__(self, log, workspace, lazy_prepare, hosts, mgs_dict, lustres,
-                 high_availability, qos_dict, no_operation=False):
+                 natvie_ha, corosync_cluster, qos_dict, no_operation=False):
         self.ci_lazy_prepare = lazy_prepare
         # Keys are the host IDs, not the hostnames
         self.ci_hosts = hosts
@@ -299,7 +306,10 @@ class ClownfishInstance(object):
         self.ci_lustres = lustres
         self.ci_workspace = workspace
         self.ci_running = True
-        self.ci_high_availability = high_availability
+        # Whether native hight availability is enabled
+        self.ci_native_ha = natvie_ha
+        # List of LustreCorosyncCluster, one cluster per Lustre file system
+        self.ci_corosync_cluster = corosync_cluster
         if not no_operation:
             self.ci_service_status = ClownfishServiceStatus(self, log)
         self.ci_qos_dict = qos_dict
@@ -525,19 +535,19 @@ class ClownfishInstance(object):
         """
         self.ci_running = False
 
-    def ci_high_availability_enable(self):
+    def ci_native_ha_enable(self):
         """
         Enable high availability
         """
-        self.ci_high_availability = True
+        self.ci_native_ha = True
 
-    def ci_high_availability_disable(self, log):
+    def ci_native_ha_disable(self, log):
         """
         disable high availability
         """
         service_status = self.ci_service_status
 
-        self.ci_high_availability = False
+        self.ci_native_ha = False
         ret = 0
         service_status.css_problem_condition.acquire()
         while (service_status.css_fix_thread_waiting_number !=
@@ -781,21 +791,7 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
         lazy_prepare_string = "enabled"
     else:
         lazy_prepare_string = "disabled"
-
     log.cl_info("lazy prepare is %s", lazy_prepare_string)
-
-    high_availability = utils.config_value(config,
-                                           cstr.CSTR_HIGH_AVAILABILITY)
-    if high_availability is None:
-        high_availability = False
-        log.cl_info("no [%s] is configured, using default value false",
-                    cstr.CSTR_HIGH_AVAILABILITY)
-
-    if high_availability:
-        high_availability_string = "enabled"
-    else:
-        high_availability_string = "disabled"
-    log.cl_info("high availability is %s", high_availability_string)
 
     dist_configs = utils.config_value(config, cstr.CSTR_LUSTRE_DISTRIBUTIONS)
     if dist_configs is None:
@@ -1325,5 +1321,49 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
             continue
         qos_dict[lustre_fs.lf_fsname] = qos
 
+    high_availability = utils.config_value(config,
+                                           cstr.CSTR_HIGH_AVAILABILITY)
+    ha_native = False
+    bindnetaddr = None
+    if high_availability is None:
+        ha_enabled = False
+        log.cl_info("no [%s] is configured, disabling high availability",
+                    cstr.CSTR_HIGH_AVAILABILITY)
+    elif not isinstance(high_availability, dict):
+        log.cl_error("high availability section is configured in the wrong way")
+        return None
+    else:
+        ha_enabled = utils.config_value(high_availability, cstr.CSTR_ENABLED)
+        if ha_enabled is None:
+            ha_enabled = False
+            log.cl_info("no [%s] is configured in high availability section, "
+                        "disabling high availability",
+                        cstr.CSTR_ENABLED)
+
+        if ha_enabled:
+            ha_native = utils.config_value(high_availability, cstr.CSTR_NATIVE)
+            if ha_native is None:
+                ha_native = False
+
+            if not ha_native:
+                bindnetaddr = utils.config_value(high_availability,
+                                                 cstr.CSTR_BINDNETADDR)
+                if bindnetaddr is None:
+                    log.cl_error("no [%s] is configured in high availability section",
+                                 cstr.CSTR_BINDNETADDR)
+                    return None
+
+    if ha_enabled:
+        if ha_native:
+            log.cl_info("native high availability is enabled")
+        else:
+            log.cl_info("high availability based on corosync enabled")
+    else:
+        log.cl_info("high availability is disabled")
+
+    corosync_cluster = None
+    if ha_enabled and not ha_native:
+        corosync_cluster = corosync.LustreCorosyncCluster(mgs_dict, lustres, bindnetaddr)
+
     return ClownfishInstance(log, workspace, lazy_prepare, hosts, mgs_dict, lustres,
-                             high_availability, qos_dict, no_operation=no_operation)
+                             ha_native, corosync_cluster, qos_dict, no_operation=no_operation)

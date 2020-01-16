@@ -911,7 +911,11 @@ class TestCluster(object):
         """
         config = {}
         config[cstr.CSTR_LAZY_PREPARE] = True
-        config[cstr.CSTR_HIGH_AVAILABILITY] = False
+        ha_config = {}
+        ha_config[cstr.CSTR_ENABLED] = True
+        ha_config[cstr.CSTR_NATIVE] = True
+        ha_config[cstr.CSTR_BINDNETADDR] = "10.0.0.0"
+        config[cstr.CSTR_HIGH_AVAILABILITY] = ha_config
         config[cstr.CSTR_CLOWNFISH_PORT] = constants.CLOWNFISH_DEFAULT_SERVER_PORT
         self._tc_generate_clownfish_config_lustre_distributions(config)
         self._tc_generate_clownfish_config_ssh_hosts(config)

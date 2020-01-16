@@ -13,5 +13,6 @@ __all__ = ["clownfish",
            "clownfish_subsystem_fs",
            "clownfish_subsystem_option",
            "clownfish_test",
+           "corosync",
            "esmon_influxdb",
            "gen_clownfish_test"]
