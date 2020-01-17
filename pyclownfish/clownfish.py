@@ -16,6 +16,7 @@ from pylcommon import utils
 from pylcommon import parallel
 from pylcommon import lustre
 from pylcommon import cstr
+from pylcommon import ssh_host
 from pyclownfish import clownfish_qos
 from pyclownfish import corosync
 
@@ -296,7 +297,8 @@ class ClownfishInstance(object):
     # pylint: disable=too-few-public-methods,too-many-instance-attributes
     # pylint: disable=too-many-arguments,too-many-public-methods
     def __init__(self, log, workspace, lazy_prepare, hosts, mgs_dict, lustres,
-                 natvie_ha, corosync_cluster, qos_dict, no_operation=False):
+                 natvie_ha, corosync_cluster, qos_dict, iso_path, local_host,
+                 mnt_path, no_operation=False):
         self.ci_lazy_prepare = lazy_prepare
         # Keys are the host IDs, not the hostnames
         self.ci_hosts = hosts
@@ -308,11 +310,17 @@ class ClownfishInstance(object):
         self.ci_running = True
         # Whether native hight availability is enabled
         self.ci_native_ha = natvie_ha
-        # List of LustreCorosyncCluster, one cluster per Lustre file system
+        # LustreCorosyncCluster, if disabled, none
         self.ci_corosync_cluster = corosync_cluster
+        # ISO path of Clownfish
+        self.ci_iso_path = iso_path
         if not no_operation:
             self.ci_service_status = ClownfishServiceStatus(self, log)
         self.ci_qos_dict = qos_dict
+        # Local host to umount the ISO
+        self.ci_local_host = local_host
+        # The mnt path of the ISO
+        self.ci_mnt_path = mnt_path
 
     def ci_mount_lustres(self, log):
         """
@@ -524,16 +532,48 @@ class ClownfishInstance(object):
 
         ret = self.ci_prepare_all_nolock(log, workspace)
 
+        if self.ci_corosync_cluster is not None:
+            ret = self.ci_corosync_cluster.ic_install(log, [], ["corosync"])
+            if ret:
+                log.cl_error("failed to install Lustre corosync cluster")
+                return -1
+
         for lock_handle in reversed(lock_handles):
             lock_handle.rwh_release()
 
         return ret
 
-    def ci_fini(self):
+    def ci_fini(self, log):
         """
         quiting
         """
         self.ci_running = False
+
+        ret = 0
+        command = ("umount %s" % (self.ci_mnt_path))
+        retval = self.ci_local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         self.ci_local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            ret = -1
+
+        command = ("rmdir %s" % (self.ci_mnt_path))
+        retval = self.ci_local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         self.ci_local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            ret = -1
+        return ret
 
     def ci_native_ha_enable(self):
         """
@@ -842,6 +882,13 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
             return None
 
         lustre_distributions[lustre_distribution_id] = lustre_rpms
+
+    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
+    if iso_path is None:
+        log.cl_info("no [%s] in the config file", cstr.CSTR_ISO_PATH)
+    elif not os.path.exists(iso_path):
+        log.cl_error("ISO file [%s] doesn't exist", iso_path)
+        return None
 
     ssh_host_configs = utils.config_value(config, cstr.CSTR_SSH_HOSTS)
     if ssh_host_configs is None:
@@ -1361,9 +1408,28 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
     else:
         log.cl_info("high availability is disabled")
 
+    local_host = ssh_host.SSHHost("localhost", local=True)
+    mnt_path = "/mnt/" + utils.random_word(8)
+
+    command = ("mkdir -p %s && mount -o loop %s %s" %
+               (mnt_path, iso_path, mnt_path))
+    retval = local_host.sh_run(log, command)
+    if retval.cr_exit_status:
+        log.cl_error("failed to run command [%s] on host [%s], "
+                     "ret = [%d], stdout = [%s], stderr = [%s]",
+                     command,
+                     local_host.sh_hostname,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+        return None
+
     corosync_cluster = None
     if ha_enabled and not ha_native:
-        corosync_cluster = corosync.LustreCorosyncCluster(mgs_dict, lustres, bindnetaddr)
+        corosync_cluster = corosync.LustreCorosyncCluster(mgs_dict, lustres,
+                                                          bindnetaddr,
+                                                          workspace, mnt_path)
 
-    return ClownfishInstance(log, workspace, lazy_prepare, hosts, mgs_dict, lustres,
-                             ha_native, corosync_cluster, qos_dict, no_operation=no_operation)
+    return ClownfishInstance(log, workspace, lazy_prepare, hosts, mgs_dict,
+                             lustres, ha_native, corosync_cluster, qos_dict,
+                             iso_path, local_host, mnt_path, no_operation=no_operation)

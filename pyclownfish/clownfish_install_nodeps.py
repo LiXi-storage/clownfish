@@ -218,7 +218,7 @@ quorum {
 
     def ccl_start(self, log):
         """
-        Config and create clownfish resouce.
+        Config and create clownfish resource.
         """
         # start pacemaker and corosync
         command = "systemctl restart corosync pacemaker"

@@ -302,6 +302,7 @@ class ClownfishServer(object):
         self.cs_log = log
         self.cs_running = True
         self.cs_instance = instance
+        assert isinstance(instance, clownfish.ClownfishInstance)
         self.cs_url_client = "tcp://*:" + str(server_port)
         self.cs_url_worker = "inproc://workers"
         self.cs_context = zmq.Context.instance()
@@ -401,11 +402,11 @@ class ClownfishServer(object):
                          "doesnot exist", client_uuid)
         return ret
 
-    def cs_fini(self):
+    def cs_fini(self, log):
         """
         Finish server
         """
-        self.cs_instance.ci_fini()
+        self.cs_instance.ci_fini(log)
         self.cs_running = False
         self.cs_client_socket.close()
         self.cs_worker_socket.close()
@@ -550,7 +551,7 @@ def clownfish_server_do_loop(log, workspace, config, config_fpath):
 
     cserver = ClownfishServer(log, clownfish_server_port, clownfish_instance)
     cserver.cs_loop()
-    cserver.cs_fini()
+    cserver.cs_fini(log)
 
 
 def clownfish_server_loop(log, workspace, config_fpath):

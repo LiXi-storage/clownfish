@@ -548,13 +548,13 @@ def connect_and_test(log, workspace, test_config, test_config_fpath,
     return ret
 
 
-def clownfish_send_lustre_rpms(log, install_config,
-                               install_config_fpath,
-                               config, config_fpath):
+def clownfish_send_packages(log, install_config,
+                            install_config_fpath,
+                            config, config_fpath):
     """
-    Send the required Lustre RPMs to the server hosts
+    Send the required packages to the server hosts
     """
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches
     server_hosts = clownfish_install_nodeps.clownfish_parse_server_hosts(log,
                                                                          install_config,
                                                                          install_config_fpath)
@@ -570,7 +570,7 @@ def clownfish_send_lustre_rpms(log, install_config,
                      cstr.CSTR_LUSTRE_DISTRIBUTIONS, config_fpath)
         return None
 
-    directories = []
+    packages = []
     for dist_config in dist_configs:
         lustre_rpm_dir = utils.config_value(dist_config,
                                             cstr.CSTR_LUSTRE_RPM_DIR)
@@ -579,8 +579,8 @@ def clownfish_send_lustre_rpms(log, install_config,
                          cstr.CSTR_LUSTRE_RPM_DIR, config_fpath)
             return None
         lustre_rpm_dir = lustre_rpm_dir.rstrip("/")
-        if lustre_rpm_dir not in directories:
-            directories.append(lustre_rpm_dir)
+        if lustre_rpm_dir not in packages:
+            packages.append(lustre_rpm_dir)
 
         e2fsprogs_rpm_dir = utils.config_value(dist_config,
                                                cstr.CSTR_E2FSPROGS_RPM_DIR)
@@ -590,12 +590,20 @@ def clownfish_send_lustre_rpms(log, install_config,
             return None
 
         e2fsprogs_rpm_dir = e2fsprogs_rpm_dir.rstrip("/")
-        if e2fsprogs_rpm_dir not in directories:
-            directories.append(e2fsprogs_rpm_dir)
+        if e2fsprogs_rpm_dir not in packages:
+            packages.append(e2fsprogs_rpm_dir)
+
+    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
+    if iso_path is None:
+        log.cl_info("no [%s] in the config file", cstr.CSTR_ISO_PATH)
+    elif not os.path.exists(iso_path):
+        log.cl_error("ISO file [%s] doesn't exist", iso_path)
+        return None
+    packages.append(iso_path)
 
     for server_host in server_hosts:
-        for directory in directories:
-            parent = os.path.dirname(directory)
+        for package in packages:
+            parent = os.path.dirname(package)
             command = "mkdir -p %s" % parent
             retval = server_host.sh_run(log, command)
             if retval.cr_exit_status:
@@ -608,11 +616,11 @@ def clownfish_send_lustre_rpms(log, install_config,
                              retval.cr_stderr)
                 return -1
 
-            ret = server_host.sh_send_file(log, directory, parent)
+            ret = server_host.sh_send_file(log, package, parent)
             if ret:
                 log.cl_error("failed to send file [%s] on local host to "
                              "directory [%s] on host [%s]",
-                             directory, parent,
+                             package, parent,
                              server_host.sh_hostname)
                 return -1
     return 0
@@ -677,10 +685,10 @@ def clownfish_do_test(log, workspace, test_config, test_config_fpath):
         return -1
 
     if not skip_install:
-        ret = clownfish_send_lustre_rpms(log, install_config,
-                                         install_config_fpath,
-                                         clownfish_config,
-                                         clownfish_config_fpath)
+        ret = clownfish_send_packages(log, install_config,
+                                      install_config_fpath,
+                                      clownfish_config,
+                                      clownfish_config_fpath)
         if ret:
             log.cl_error("failed to send Lustre RPMs")
             return -1

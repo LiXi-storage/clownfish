@@ -905,7 +905,7 @@ class TestCluster(object):
         lustre_configs.append(lustre_config)
         config[cstr.CSTR_LUSTRES] = lustre_configs
 
-    def tc_generate_clownfish_config(self, log):
+    def tc_generate_clownfish_config(self, log, launch_argument):
         """
         Generate clownfish.conf
         """
@@ -917,6 +917,7 @@ class TestCluster(object):
         ha_config[cstr.CSTR_BINDNETADDR] = "10.0.0.0"
         config[cstr.CSTR_HIGH_AVAILABILITY] = ha_config
         config[cstr.CSTR_CLOWNFISH_PORT] = constants.CLOWNFISH_DEFAULT_SERVER_PORT
+        config[cstr.CSTR_ISO_PATH] = launch_argument.la_test_host_iso_fpath
         self._tc_generate_clownfish_config_lustre_distributions(config)
         self._tc_generate_clownfish_config_ssh_hosts(config)
         self._tc_generate_clownfish_config_mgs_list(config)
@@ -938,7 +939,7 @@ class TestCluster(object):
 
     def _tc_generate_clownfish_install_config_ssh_hosts(self, config):
         """
-        Generate the ssh_hosts and cluster part of clownfish.conf
+        Generate the ssh_hosts and cluster part of clownfish_install.conf
         """
         ssh_host_configs = []
         cluster_host_configs = []
@@ -1113,6 +1114,22 @@ class TestCluster(object):
                              "local host to debug why build of clownfish failed",
                              remote_source_path, host.sh_hostname, workspace)
             return -1
+
+        command = ("cd %s && ls clownfish-*.iso" % remote_source_path)
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        iso_fname = retval.cr_stdout.strip()
+
+        launch_argument.la_test_host_iso_fpath = (remote_source_path + "/" +
+                                                  iso_fname)
         return 0
 
     def tc_get_and_clean_build_dir(self, log, launch_argument):
@@ -1175,7 +1192,7 @@ class TestCluster(object):
             log.cl_error("failed to generate config of lvirt")
             return -1
 
-        ret = self.tc_generate_clownfish_config(log)
+        ret = self.tc_generate_clownfish_config(log, launch_argument)
         if ret:
             log.cl_error("failed to generate config of clownfish")
             return -1
