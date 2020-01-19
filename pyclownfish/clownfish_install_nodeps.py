@@ -19,12 +19,8 @@ from pylcommon import install_common
 from pylcommon import install_common_nodeps
 from pylcommon import constants
 from pyclownfish import clownfish_common
+from pyclownfish import corosync
 
-CLOWNFISH_COROSYNC_FNAME = "corosync.conf"
-CLOWNFISH_AUTHKEY_FNAME = "authkey"
-COROSYNC_CONFIG_DIR = "/etc/corosync/"
-CLOWNFISH_COROSYNC_CONFIG = COROSYNC_CONFIG_DIR + CLOWNFISH_COROSYNC_FNAME
-CLOWNFISH_COROSYNC_AUTHKEY = COROSYNC_CONFIG_DIR + CLOWNFISH_AUTHKEY_FNAME
 CLOWNFISH_ISO_DIR = "/mnt/clownfish_ha/"
 CLOWNFISH_CONSOLE_CMD = "clf"
 
@@ -141,7 +137,7 @@ quorum {
         """
         # pylint: disable=too-many-branches
         # edit corosync.conf and sync to all ha hosts
-        corosync_config_fpath = workspace + "/" + CLOWNFISH_COROSYNC_FNAME
+        corosync_config_fpath = workspace + "/" + corosync.CLOWNFISH_COROSYNC_FNAME
         corosync_config_fd = open(corosync_config_fpath, 'w')
         if not corosync_config_fd:
             log.cl_error("failed to open file [%s] on localhost",
@@ -178,26 +174,26 @@ quorum {
                 return ret
 
             ret = host.sh_send_file(log, corosync_config_fpath,
-                                    CLOWNFISH_COROSYNC_CONFIG)
+                                    corosync.CLOWNFISH_COROSYNC_CONFIG)
             if ret:
                 log.cl_error("failed to send file [%s] on local host to "
                              "file [%s] on host [%s]",
                              corosync_config_fpath,
-                             CLOWNFISH_COROSYNC_CONFIG,
+                             corosync.CLOWNFISH_COROSYNC_CONFIG,
                              host.sh_hostname)
                 return ret
 
             if host != host_first:
-                ret = host_first.sh_send_file(log, CLOWNFISH_COROSYNC_AUTHKEY,
-                                              CLOWNFISH_COROSYNC_AUTHKEY,
+                ret = host_first.sh_send_file(log, corosync.CLOWNFISH_COROSYNC_AUTHKEY,
+                                              corosync.CLOWNFISH_COROSYNC_AUTHKEY,
                                               from_local=False,
                                               remote_host=host)
                 if ret:
                     log.cl_error("failed to send file [%s] on host [%s] to "
                                  "file [%s] on host [%s]",
-                                 CLOWNFISH_COROSYNC_AUTHKEY,
+                                 corosync.CLOWNFISH_COROSYNC_AUTHKEY,
                                  host_first.sh_hostname,
-                                 CLOWNFISH_COROSYNC_AUTHKEY,
+                                 corosync.CLOWNFISH_COROSYNC_AUTHKEY,
                                  host.sh_hostname)
                     return ret
 

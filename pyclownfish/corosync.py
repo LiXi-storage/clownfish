@@ -4,9 +4,14 @@
 """
 Library for Corosync
 """
-
-
 from pylcommon import install_common
+
+
+CLOWNFISH_COROSYNC_FNAME = "corosync.conf"
+CLOWNFISH_AUTHKEY_FNAME = "authkey"
+COROSYNC_CONFIG_DIR = "/etc/corosync/"
+CLOWNFISH_COROSYNC_CONFIG = COROSYNC_CONFIG_DIR + CLOWNFISH_COROSYNC_FNAME
+CLOWNFISH_COROSYNC_AUTHKEY = COROSYNC_CONFIG_DIR + CLOWNFISH_AUTHKEY_FNAME
 
 
 class LustreCorosyncCluster(install_common.InstallationCluster):
@@ -77,6 +82,77 @@ quorum {
                                                     self.lcc_hosts.values(),
                                                     mnt_path)
         self.lcc_corosync_config += nodelist_string
+
+    def lcc_config(self, log, workspace):
+        """
+        Configure corosync and pacemaker, and add target resource
+        """
+        # pylint: disable=too-many-branches
+        # edit corosync.conf and sync to all ha hosts
+        corosync_config_fpath = workspace + "/" + CLOWNFISH_COROSYNC_FNAME
+        corosync_config_fd = open(corosync_config_fpath, 'w')
+        if not corosync_config_fd:
+            log.cl_error("failed to open file [%s] on localhost",
+                         corosync_config_fpath)
+            return -1
+        corosync_config_fd.write(self.lcc_corosync_config)
+        corosync_config_fd.close()
+
+        # Generate corosync authkey on host 0
+        host_first = self.ic_hosts[0]
+        command = "/usr/sbin/corosync-keygen --less-secure"
+        retval = host_first.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to start run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host_first.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+        # sync corosync.conf and authkey to all ha hosts
+        for host in self.lcc_hosts.iterkeys():
+            ret = host.sh_send_file(log, corosync_config_fpath,
+                                    CLOWNFISH_COROSYNC_CONFIG)
+            if ret:
+                log.cl_error("failed to send file [%s] on local host to "
+                             "file [%s] on host [%s]",
+                             corosync_config_fpath,
+                             CLOWNFISH_COROSYNC_CONFIG,
+                             host.sh_hostname)
+                return ret
+
+            if host != host_first:
+                ret = host_first.sh_send_file(log, CLOWNFISH_COROSYNC_AUTHKEY,
+                                              CLOWNFISH_COROSYNC_AUTHKEY,
+                                              from_local=False,
+                                              remote_host=host)
+                if ret:
+                    log.cl_error("failed to send file [%s] on host [%s] to "
+                                 "file [%s] on host [%s]",
+                                 CLOWNFISH_COROSYNC_AUTHKEY,
+                                 host_first.sh_hostname,
+                                 CLOWNFISH_COROSYNC_AUTHKEY,
+                                 host.sh_hostname)
+                    return ret
+
+            log.cl_info("configuring autostart of corosync on "
+                        "host [%s]", host.sh_hostname)
+            command = "systemctl enable corosync"
+            retval = host.sh_run(log, command)
+            if retval.cr_exit_status != 0:
+                log.cl_error("failed to run command [%s] on host [%s], "
+                             "ret = [%d], stdout = [%s], stderr = [%s]",
+                             command,
+                             host.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+        return 0
 
     def ccl_start(self, log):
         """

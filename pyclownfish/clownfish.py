@@ -533,9 +533,19 @@ class ClownfishInstance(object):
         ret = self.ci_prepare_all_nolock(log, workspace)
 
         if self.ci_corosync_cluster is not None:
-            ret = self.ci_corosync_cluster.ic_install(log, [], ["corosync"])
+            ret = self.ci_corosync_cluster.ic_install(log, [], ["corosync", "pcs"])
             if ret:
                 log.cl_error("failed to install Lustre corosync cluster")
+                return -1
+
+            ret = self.ci_corosync_cluster.lcc_config(log, workspace)
+            if ret:
+                log.cl_error("failed to configure Lustre corosync cluster")
+                return -1
+
+            ret = self.ci_corosync_cluster.ccl_start(log)
+            if ret:
+                log.cl_error("failed to start Lustre corosync cluster")
                 return -1
 
         for lock_handle in reversed(lock_handles):
