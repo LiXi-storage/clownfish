@@ -505,10 +505,11 @@ def main():
     sys.setdefaultencoding("utf-8")
 
     argc = len(sys.argv)
-    if argc < 2:
-        utils.eprint("too few arguments")
-        usage()
-        sys.exit(-1)
+    if argc == 1:
+        # clownfish <localhost>
+        server_url = ("tcp://localhost:%s" %
+                      constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+        cmdline = None
     elif argc == 2:
         # clownfish_console host
         # clownfish_console -h
