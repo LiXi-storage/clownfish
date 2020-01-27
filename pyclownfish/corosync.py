@@ -114,7 +114,7 @@ quorum {
             return -1
 
         # sync corosync.conf and authkey to all ha hosts
-        for host in self.lcc_hosts.iterkeys():
+        for host in self.lcc_hosts.itervalues():
             ret = host.sh_send_file(log, corosync_config_fpath,
                                     CLOWNFISH_COROSYNC_CONFIG)
             if ret:
@@ -160,7 +160,7 @@ quorum {
         """
         # start pacemaker and corosync
         command = "systemctl restart corosync pacemaker"
-        for host in self.lcc_hosts:
+        for host in self.lcc_hosts.itervalues():
             retval = host.sh_run(log, command)
             if retval.cr_exit_status != 0:
                 log.cl_error("failed to run command [%s] on host "
