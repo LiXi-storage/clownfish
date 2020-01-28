@@ -2357,3 +2357,66 @@ class SSHHost(object):
                          retval.cr_exit_status, retval.cr_stdout,
                          retval.cr_stderr)
         return size
+
+    def sh_pcs_resources(self, log):
+        """
+        Return a list of resources
+        """
+        command = "pcs resource show"
+        retval = self.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         self.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return None
+
+        lines = retval.cr_stdout.splitlines()
+        if len(lines) == 1 and lines[0] == "NO resources configured":
+            return []
+
+        resources = []
+        output_pattern = r"^\s+(?P<name>\S+)\s+(?P<path>\S+)\s+(?P<status>\S+)$"
+        output_regular = re.compile(output_pattern)
+        for line in lines:
+            match = output_regular.match(line)
+            if not match:
+                log.cl_error("command [%s] has unexpected output on host [%s], "
+                             "ret = [%d], stdout = [%s], stderr = [%s]",
+                             command,
+                             self.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return None
+
+            name = match.group("name")
+            resources.append(name)
+
+        return resources
+
+    def sh_pcs_resources_clear(self, log):
+        """
+        Clear all PCS resources
+        """
+        resources = self.sh_pcs_resources(log)
+        if resources is None:
+            log.cl_error("failed to get PCS resources on host [%s]",
+                         self.sh_hostname)
+            return -1
+        for name in resources:
+            command = "pcs resource delete " + name
+            retval = self.sh_run(log, command)
+            if retval.cr_exit_status:
+                log.cl_error("failed to run command [%s] on host [%s], "
+                             "ret = [%d], stdout = [%s], stderr = [%s]",
+                             command,
+                             self.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+        return 0

@@ -172,4 +172,11 @@ quorum {
                              retval.cr_stdout,
                              retval.cr_stderr)
                 return -1
+
+        host0 = self.lcc_hosts.values()[0]
+        ret = host0.sh_pcs_resources_clear(log)
+        if ret:
+            log.cl_error("failed to clear PCS resources on host [%s]",
+                         host0.sh_hostname)
+            return ret
         return 0
