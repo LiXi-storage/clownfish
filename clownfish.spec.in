@@ -154,6 +154,9 @@ cp -a example_configs/clownfish/clownfish_install.conf \
 %endif
 install -g 0 -o 0 -m 0644 man/clf.1 $RPM_BUILD_ROOT%{_mandir}/man1/
 
+mkdir -p $RPM_BUILD_ROOT/%{_usr}/lib/ocf/resource.d/clownfish
+cp -a ocf/* $RPM_BUILD_ROOT/%{_usr}/lib/ocf/resource.d/clownfish
+
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -173,6 +176,7 @@ rm -rf $RPM_BUILD_ROOT
     %{_sysconfdir}/rc.d/init.d/clownfish_server
 %endif
 %{_mandir}/man1/clf.1*
+%{_usr}/lib/ocf/resource.d/clownfish/*
 
 %files pylcommon
 %{python_sitelib}/pylcommon

@@ -48,7 +48,8 @@ EXTRA_DIST= \
 	pyclownfish/.pylintrc \
 	pylcommon/*.py \
 	pyltest/*.py \
-	systemd/*
+	systemd/* \
+	ocf/*
 
 PYTHON_PROTOBUF = pyclownfish/clownfish_pb2.py
 PYLTEST_FILES = $(wildcard pyltest/*.py)
