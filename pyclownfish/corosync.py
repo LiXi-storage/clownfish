@@ -20,6 +20,8 @@ class LustreCorosyncCluster(install_common.InstallationCluster):
     Lustre HA cluster config.
     """
     def __init__(self, mgs_dict, lustres, bindnetaddr, workspace, mnt_path):
+        self.lcc_mgs_dict = mgs_dict
+        self.lcc_lustres = lustres
         self.lcc_bindnetaddr = bindnetaddr
         self.lcc_corosync_config = ("""
 totem {
@@ -139,9 +141,9 @@ quorum {
                                  host.sh_hostname)
                     return ret
 
-            log.cl_info("configuring autostart of corosync on "
+            log.cl_info("configuring autostart of corosync and pacemaker on "
                         "host [%s]", host.sh_hostname)
-            command = "systemctl enable corosync"
+            command = "systemctl enable corosync pacemaker"
             retval = host.sh_run(log, command)
             if retval.cr_exit_status != 0:
                 log.cl_error("failed to run command [%s] on host [%s], "
@@ -152,6 +154,7 @@ quorum {
                              retval.cr_stdout,
                              retval.cr_stderr)
                 return -1
+        log.cl_info("corosync and pacemaker is properly configured in the cluster")
         return 0
 
     def ccl_start(self, log):
@@ -179,4 +182,18 @@ quorum {
             log.cl_error("failed to clear PCS resources on host [%s]",
                          host0.sh_hostname)
             return ret
+
+        # Disable stonish otherwise resource won't start
+        command = "pcs property set stonith-enabled=false"
+        retval = host0.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host0.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
         return 0
