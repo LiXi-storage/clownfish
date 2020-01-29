@@ -535,7 +535,6 @@ def clownfish_server_do_loop(log, workspace, config, config_fpath):
     """
     Server routine
     """
-    # pylint: disable=unused-argument
     clownfish_server_port = utils.config_value(config, cstr.CSTR_CLOWNFISH_PORT)
     if clownfish_server_port is None:
         log.cl_info("no [%s] is configured, using port [%s]",
@@ -558,8 +557,7 @@ def clownfish_server_loop(log, workspace, config_fpath):
     """
     Start Clownfish holding the configure lock
     """
-    # pylint: disable=too-many-branches,bare-except,too-many-locals
-    # pylint: disable=too-many-statements
+    # pylint: disable=bare-except
     config_fd = open(config_fpath)
     ret = 0
     try:

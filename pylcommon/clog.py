@@ -207,7 +207,7 @@ class CommandLog(object):
                        record_consumer=record_consumer,
                        condition=condition)
 
-    def cl_config(self):
+    def cl_config(self, console_level=logging.INFO):
         """
         Config the log
         """
@@ -260,7 +260,7 @@ class CommandLog(object):
 
         if name is None:
             console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.INFO)
+            console_handler.setLevel(console_level)
             if not simple_console:
                 console_handler.setFormatter(default_formatter)
             logger.addHandler(console_handler)
@@ -392,7 +392,8 @@ class CommandLog(object):
 
 
 def get_log(name=None, resultsdir=None, simple_console=False,
-            exclusive=True, record_consumer=False, condition=None):
+            exclusive=True, record_consumer=False, condition=None,
+            console_level=logging.INFO):
     """
     Get the log class
     If exclusive, the name should not be used for twice
@@ -405,7 +406,7 @@ def get_log(name=None, resultsdir=None, simple_console=False,
     old_log = GLOBAL_LOGS.cls_log_add_or_get(log)
     if old_log is log:
         # Newly added, config it
-        old_log.cl_config()
+        old_log.cl_config(console_level=console_level)
     else:
         if exclusive:
             reason = ("log with name [%s] already exists" % name)

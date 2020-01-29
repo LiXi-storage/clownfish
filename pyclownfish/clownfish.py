@@ -302,9 +302,9 @@ class ClownfishInstance(object):
         self.ci_lazy_prepare = lazy_prepare
         # Keys are the host IDs, not the hostnames
         self.ci_hosts = hosts
-        # Keys are the MGS IDs, values ares instances of LustreService
+        # Keys are the MGS IDs, values are instances of LustreService
         self.ci_mgs_dict = mgs_dict
-        # Keys are the fsname, values ares instances of LustreFilesystem
+        # Keys are the fsnames, values are instances of LustreFilesystem
         self.ci_lustres = lustres
         self.ci_workspace = workspace
         self.ci_running = True

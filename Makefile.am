@@ -21,6 +21,7 @@ example_configs/clownfish/clownfish_test.conf: \
 
 PYTHON_COMMANDS = \
 	clf \
+	clf_local \
 	clownfish_install \
 	clownfish_server \
 	clownfish_test \

@@ -9,6 +9,7 @@ import os
 import shutil
 import traceback
 import getopt
+import logging
 import filelock
 
 from pylcommon import clog
@@ -16,47 +17,56 @@ from pylcommon import time_util
 from pylcommon import utils
 
 
-def usage():
+def usage(usage_func):
     """
     Print usage string
     """
-    utils.eprint("Usage: %s [--config|-c <config>] [--logdir|-d <logdir>] [--help|-h]\n"
-                 "        logdir: the dir path to save logs\n"
-                 "        config: config file path"
-                 % sys.argv[0])
+    if usage_func is None:
+        utils.eprint("Usage: %s [--config|-c <config>] [--logdir|-d <logdir>] [--help|-h]\n"
+                     "    logdir: the dir path to save logs\n"
+                     "    config: config file path"
+                     % sys.argv[0])
+    else:
+        usage_func(sys.argv[0])
 
 
-def main(default_config_fpath, default_log_parent, main_func):
+def main(default_config_fpath, default_log_parent, main_func,
+         usage_func=None, parse_func=None, console_level=logging.INFO):
     """
     The main function of a command
     """
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-arguments
     reload(sys)
     sys.setdefaultencoding("utf-8")
 
-    options, args = getopt.getopt(sys.argv[1:],
-                                  "c:i:h",
-                                  ["config=",
-                                   "help",
-                                   "logdir="])
+    if parse_func is None:
+        options, args = getopt.getopt(sys.argv[1:],
+                                      "c:i:h",
+                                      ["config=",
+                                       "help",
+                                       "logdir="])
 
-    config_fpath = None
-    workspace = None
-    for opt, arg in options:
-        if opt == '-c' or opt == "--config" or opt == "-config":
-            config_fpath = arg
-        elif opt == '-l' or opt == "--logdir" or opt == "-logdir":
-            workspace = arg
-        elif opt == '-h' or opt == "--help" or opt == "-help":
-            usage()
-            sys.exit(0)
-        else:
-            usage()
+        config_fpath = None
+        workspace = None
+        private = None
+        for opt, arg in options:
+            if opt == '-c' or opt == "--config" or opt == "-config":
+                config_fpath = arg
+            elif opt == '-l' or opt == "--logdir" or opt == "-logdir":
+                workspace = arg
+            elif opt == '-h' or opt == "--help" or opt == "-help":
+                usage(usage_func)
+                sys.exit(0)
+            else:
+                usage(usage_func)
+                sys.exit(1)
+
+        if len(args) != 0:
+            usage(usage_func)
             sys.exit(1)
-
-    if len(args) != 0:
-        usage()
-        sys.exit(1)
+    else:
+        workspace, config_fpath, private = parse_func()
 
     if workspace is None:
         identity = time_util.local_strftime(time_util.utcnow(),
@@ -76,7 +86,8 @@ def main(default_config_fpath, default_log_parent, main_func):
                       retval.cr_stderr))
         sys.exit(-1)
 
-    log = clog.get_log(resultsdir=workspace, exclusive=False)
+    log = clog.get_log(resultsdir=workspace, exclusive=False,
+                       console_level=console_level)
     log.cl_info("starting to run [%s] using config [%s], "
                 "please check [%s] for more log" %
                 (main_func.__name__, config_fpath, workspace))
@@ -102,7 +113,10 @@ def main(default_config_fpath, default_log_parent, main_func):
     try:
         with lock.acquire(timeout=0):
             try:
-                ret = main_func(log, workspace, config_fpath)
+                if parse_func is None:
+                    ret = main_func(log, workspace, config_fpath)
+                else:
+                    ret = main_func(log, workspace, config_fpath, private)
             except:
                 ret = -1
                 log.cl_error("exception: %s", traceback.format_exc())
