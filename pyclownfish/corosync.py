@@ -29,7 +29,7 @@ totem {
     interface {
         ringnumber: 0
         bindnetaddr: %s
-        mcastaddr: 226.94.1.1
+        mcastaddr: 226.94.1.2
         mcastport: 5405
         ttl: 1
     }
