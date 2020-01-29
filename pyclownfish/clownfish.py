@@ -887,17 +887,18 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
 
         lustre_rpms = lustre.LustreRPMs(lustre_distribution_id,
                                         lustre_rpm_dir, e2fsprogs_rpm_dir)
-        ret = lustre_rpms.lr_prepare(log)
-        if ret:
-            log.cl_error("failed to prepare Lustre RPMs")
-            return None
+        if not no_operation:
+            ret = lustre_rpms.lr_prepare(log)
+            if ret:
+                log.cl_error("failed to prepare Lustre RPMs")
+                return None
 
         lustre_distributions[lustre_distribution_id] = lustre_rpms
 
     iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
     if iso_path is None:
         log.cl_info("no [%s] in the config file", cstr.CSTR_ISO_PATH)
-    elif not os.path.exists(iso_path):
+    elif not no_operation and not os.path.exists(iso_path):
         log.cl_error("ISO file [%s] doesn't exist", iso_path)
         return None
 
@@ -1422,18 +1423,19 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
     local_host = ssh_host.SSHHost("localhost", local=True)
     mnt_path = "/mnt/" + utils.random_word(8)
 
-    command = ("mkdir -p %s && mount -o loop %s %s" %
-               (mnt_path, iso_path, mnt_path))
-    retval = local_host.sh_run(log, command)
-    if retval.cr_exit_status:
-        log.cl_error("failed to run command [%s] on host [%s], "
-                     "ret = [%d], stdout = [%s], stderr = [%s]",
-                     command,
-                     local_host.sh_hostname,
-                     retval.cr_exit_status,
-                     retval.cr_stdout,
-                     retval.cr_stderr)
-        return None
+    if not no_operation:
+        command = ("mkdir -p %s && mount -o loop %s %s" %
+                   (mnt_path, iso_path, mnt_path))
+        retval = local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return None
 
     corosync_cluster = None
     if ha_enabled and not ha_native:

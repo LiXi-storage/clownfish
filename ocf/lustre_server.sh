@@ -11,15 +11,18 @@
 #
 # usage: ./lustre_server {start|stop|status|monitor|validate-all|meta-data}
 #
-#         OCF parameters are as below:
-#               OCF_RESKEY_device
-#               OCF_RESKEY_directory
-#               OCF_RESKEY_options
+#         OCF parameters should include either:
+#               OCF_RESKEY_fsname
+#               OCF_RESKEY_service_uuid
+#         or:
+#               OCF_RESKEY_mgs_id
+#         OCF_RESKEY_options can be speicified.
 #
-#OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
-#                       Or a -U or -L option for mount, or an NFS mount specification
-#OCF_RESKEY_directory : the mount point for the filesystem
-#OCF_RESKEY_options   : options to be given to the mount command via -o
+# 
+# OCF_RESKEY_fsname       : name of the filesystem. e.g. lustre0
+# OCF_RESKEY_service_uuid : the uuid of the service, e.g. fsname-OST000a or OST000a
+# OCF_RESKEY_mgs_id       : the ID of mgs in clownfish.conf
+# OCF_RESKEY_options      : options to be given to the mount command via -o
 #
 #
 # NOTE: There is no locking (such as a SCSI reservation) being done here.
@@ -77,19 +80,27 @@ meta_data() {
 <shortdesc lang="en">lustre_server resource agent</shortdesc>
 
 <parameters>
-  <parameter name="device" required="1">
+  <parameter name="fsname">
     <longdesc lang="en">
-       The name of block device for the filesystem
+       name of the filesystem. e.g. lustre0
   </longdesc>
-  <shortdesc lang="en">block device</shortdesc>
+  <shortdesc lang="en">file system name</shortdesc>
   <content type="string" default="" />
 </parameter>
 
-<parameter name="directory" required="1">
+<parameter name="service_uuid">
  <longdesc lang="en">
-   The mount point for the filesystem.
+   the uuid of the Lustre service.
  </longdesc>
- <shortdesc lang="en">mount point</shortdesc>
+ <shortdesc lang="en">servive uuid</shortdesc>
+ <content type="string" default="" />
+</parameter>
+
+<parameter name="mgs_id">
+ <longdesc lang="en">
+   the ID of mgs in clownfish.conf.
+ </longdesc>
+ <shortdesc lang="en">mgs_id</shortdesc>
  <content type="string" default="" />
 </parameter>
 
@@ -387,7 +398,53 @@ if [ $# -ne 1 ]; then
 fi
 
 # Check the OCF_RESKEY_ environment variables...
-DEVICE=$OCF_RESKEY_device
+FSNAME=$OCF_RESKEY_fsname
+SERVICE_UUID=$OCF_RESKEY_service_uuid
+MGS_ID=$OCF_RESKEY_mgs_id
+if [ ! -z "$FSNAME" ]; then
+        if [ -z "$SERVICE_UUID" ]; then
+                ocf_log err "OCF_RESKEY_fsname and OCF_RESKEY_uuid should be specified at the same time"
+                exit $OCF_ERR_ARGS
+        fi
+        if [ ! -z "$MGS_ID" ]; then
+                ocf_log err "OCF_RESKEY_fsname and OCF_RESKEY_mgs_id should NOT be specified at the same time"
+                exit $OCF_ERR_ARGS
+        fi
+        output=$(clf_local fsname=$FSNAME service_uuid=$SERVICE_UUID)
+        if [ $? -ne 0 ]; then
+                ocf_log err "failure of clf_local"
+                exit $OCF_ERR_ARGS
+        fi
+elif [ ! -z "$MGS_ID" ]; then
+        if [ ! -z "$UUID" ]; then
+                ocf_log err "OCF_RESKEY_mgs_id and OCF_RESKEY_service_uuid should NOT be specified at the same time"
+                exit $OCF_ERR_ARGS
+        fi
+        output=$(clf_local mgs_id=$MGS_ID)
+        if [ $? -ne 0 ]; then
+                ocf_log err "failure of clf_local"
+                exit $OCF_ERR_ARGS
+        fi
+else
+        ocf_log err "either OCF_RESKEY_mgs_id or OCF_RESKEY_fsname should be specified"
+        exit $OCF_ERR_ARGS
+fi
+
+fields=($output)
+if [ ${#fields[@]} -ne 2 ]; then
+        ocf_log err "unexpected output of clf_local"
+        exit $OCF_ERR_ARGS
+fi
+DEVICE=${fields[0]}
+MOUNTPOINT=${fields[1]}
+
+MOUNTPOINT=`echo $MOUNTPOINT | sed -e 's/\s*//'`
+if [ -z "$MOUNTPOINT" ]; then
+        ocf_log err "Empty mount point!"
+        ocf_log err "Please specify the directory"
+        exit $OCF_ERR_ARGS
+fi
+
 if [ ! -z "$OCF_RESKEY_options" ]; then
         options="-o $OCF_RESKEY_options"
 fi
@@ -407,28 +464,6 @@ usage)          usage
                 exit $OCF_SUCCESS
                 ;;
 esac
-
-# Normalize instance parameters:
-
-# It is possible that OCF_RESKEY_directory has one or even multiple trailing "/".
-# But the output of `mount` and /proc/mounts do not.
-if [ -z "$OCF_RESKEY_directory" ]; then
-        ocf_log err "Please specify the directory"
-        exit $OCF_ERR_ARGS
-else
-        MOUNTPOINT=$(echo $OCF_RESKEY_directory | sed 's/\/*$//')
-        : ${MOUNTPOINT:=/}
-        # At this stage, $MOUNTPOINT does not contain trailing "/" unless it is "/"
-        # TODO: / mounted via lustre_server sounds dangerous. On stop, we'll
-        # kill the whole system. Is that a good idea?
-fi
-
-MOUNTPOINT=`echo $MOUNTPOINT | sed -e 's/\s*//'`
-if [ -z "$MOUNTPOINT" ]; then
-        ocf_log err "Empty mount point!"
-        ocf_log err "Please specify the directory"
-        exit $OCF_ERR_ARGS
-fi
 
 # Check to make sure the utilites are found
 check_binary $MODPROBE

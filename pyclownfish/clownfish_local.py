@@ -21,7 +21,7 @@ from pyclownfish import clownfish
 KEY_MGS_ID = "mgs_id"
 KEY_FSNAME = "fsname"
 KEY_HOSTNAME = "hostname"
-KEY_UUID = "uuid"
+KEY_UUID = "service_uuid"
 
 CLOWNFISH_LOCATION_KEYS = [KEY_MGS_ID, KEY_FSNAME, KEY_HOSTNAME,
                            KEY_UUID]
@@ -105,8 +105,8 @@ def _clownfish_local_main(log, workspace, config, config_fpath,
             service_name = fsname + "-" + fields[0]
         else:
             if fields[0] != fsname:
-                log.cl_error("invalud fsname [%s] in the value [%s] for key [%s]",
-                             fields[0], service_uuid, KEY_UUID)
+                log.cl_error("invalid fsname [%s] in the value [%s] for key [%s], expected [%s]",
+                             fields[0], service_uuid, KEY_UUID, fsname)
                 return -1
             service_name = service_uuid
         if service_name not in lustrefs.lf_service_dict:
@@ -118,10 +118,10 @@ def _clownfish_local_main(log, workspace, config, config_fpath,
     for instance in service.ls_instances.values():
         host = instance.lsi_host
         if host.sh_hostname == hostname:
-            print instance.lsi_device
+            print instance.lsi_device, instance.lsi_mnt
             return 0
     log.cl_error("host [%s] doesnot provide the Lustre service [%s]",
-                 hostname, service_name)
+                 hostname, service.ls_service_name)
     return -1
 
 
@@ -163,7 +163,7 @@ key is one of the following:
     mgs_id: the ID of mgs in clownfish.conf
     fsname: the name of Lustre file system
     hostname: the hostname the service runs
-    uuid: the uuid of the service, e.g. fsname-OST000a or OST000a, 0, MDT000a
+    uuid: the uuid of the service, e.g. fsname-OST000a, OST000a, or MDT000a
 
 Examples:
     %s mgs_id=lustre_mgs hostname=server0
