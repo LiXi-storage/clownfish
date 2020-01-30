@@ -80,12 +80,12 @@ meta_data() {
 <shortdesc lang="en">lustre_server resource agent</shortdesc>
 
 <parameters>
-  <parameter name="fsname">
-    <longdesc lang="en">
-       name of the filesystem. e.g. lustre0
-  </longdesc>
-  <shortdesc lang="en">file system name</shortdesc>
-  <content type="string" default="" />
+<parameter name="fsname">
+ <longdesc lang="en">
+   name of the filesystem, e.g. lustre0
+ </longdesc>
+ <shortdesc lang="en">file system name</shortdesc>
+ <content type="string" default="" />
 </parameter>
 
 <parameter name="service_uuid">
@@ -397,6 +397,22 @@ if [ $# -ne 1 ]; then
         exit $OCF_ERR_ARGS
 fi
 
+OP=$1
+
+if [ "$OCF_DEBUG" = "yes" ]; then
+        ocf_log info "OP = $OP"
+fi
+
+# These operations do not require instance parameters
+case $OP in
+meta-data)      meta_data
+                exit $OCF_SUCCESS
+                ;;
+usage)          usage
+                exit $OCF_SUCCESS
+                ;;
+esac
+
 # Check the OCF_RESKEY_ environment variables...
 FSNAME=$OCF_RESKEY_fsname
 SERVICE_UUID=$OCF_RESKEY_service_uuid
@@ -448,22 +464,6 @@ fi
 if [ ! -z "$OCF_RESKEY_options" ]; then
         options="-o $OCF_RESKEY_options"
 fi
-
-OP=$1
-
-if [ "$OCF_DEBUG" = "yes" ]; then
-        ocf_log info "OP = $OP"
-fi
-
-# These operations do not require instance parameters
-case $OP in
-meta-data)      meta_data
-                exit $OCF_SUCCESS
-                ;;
-usage)          usage
-                exit $OCF_SUCCESS
-                ;;
-esac
 
 # Check to make sure the utilites are found
 check_binary $MODPROBE
