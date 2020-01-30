@@ -19,6 +19,7 @@ from pylcommon import cstr
 from pylcommon import ssh_host
 from pyclownfish import clownfish_qos
 from pyclownfish import corosync
+from pyclownfish import clownfish_common
 
 CLOWNFISH_STATUS_CHECK_INTERVAL = 1
 
@@ -508,7 +509,7 @@ class ClownfishInstance(object):
         ret = parallel_execute.pe_run()
 
         if ret == 0 and self.ci_corosync_cluster is not None:
-            ret = self.ci_corosync_cluster.ic_install(log, [], ["corosync", "pcs"])
+            ret = self.ci_corosync_cluster.ic_install(log, [], clownfish_common.CLOWNFISH_DEPENDENT_RPMS)
             if ret:
                 log.cl_error("failed to install Lustre corosync cluster")
                 return -1

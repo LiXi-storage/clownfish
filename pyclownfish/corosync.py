@@ -154,15 +154,45 @@ quorum {
                              retval.cr_stdout,
                              retval.cr_stderr)
                 return -1
-        log.cl_info("corosync and pacemaker is properly configured in the cluster")
         return 0
 
     def ccl_start(self, log):
         """
         Config and create Lustre resource.
         """
+        # stop corosync, stopping might fail
+        for host in self.lcc_hosts.itervalues():
+            command = "systemctl stop corosync"
+            retval = host.sh_run(log, command, timeout=60)
+            if retval.cr_exit_status != 0:
+                # Stop might fail, kill -9 by force
+                log.cl_info("failed to run command [%s] on host "
+                            "[%s], ret = [%d], stdout = [%s], stderr = "
+                            "[%s], trying to kill it by force",
+                            command,
+                            host.sh_hostname,
+                            retval.cr_exit_status,
+                            retval.cr_stdout,
+                            retval.cr_stderr)
+
+                command = "killall -9 corosync"
+                retval = host.sh_run(log, command)
+
+                command = "systemctl stop corosync"
+                retval = host.sh_run(log, command)
+                if retval.cr_exit_status != 0:
+                    log.cl_error("failed to run command [%s] on host "
+                                 "[%s], ret = [%d], stdout = [%s], stderr = "
+                                 "[%s]",
+                                 command,
+                                 host.sh_hostname,
+                                 retval.cr_exit_status,
+                                 retval.cr_stdout,
+                                 retval.cr_stderr)
+                    return -1
+
         # start pacemaker and corosync
-        command = "systemctl restart corosync pacemaker"
+        command = "systemctl start corosync pacemaker"
         for host in self.lcc_hosts.itervalues():
             retval = host.sh_run(log, command)
             if retval.cr_exit_status != 0:
@@ -196,4 +226,6 @@ quorum {
                          retval.cr_stdout,
                          retval.cr_stderr)
             return -1
+
+        log.cl_info("corosync and pacemaker is started in the cluster")
         return 0

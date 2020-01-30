@@ -2379,7 +2379,7 @@ class SSHHost(object):
             return []
 
         resources = []
-        output_pattern = r"^\s+(?P<name>\S+)\s+(?P<path>\S+)\s+(?P<status>\S+)$"
+        output_pattern = r"^\s+(?P<name>\S+)\s+(?P<path>\S+)\s+(?P<status>\S+).+$"
         output_regular = re.compile(output_pattern)
         for line in lines:
             match = output_regular.match(line)
@@ -2419,4 +2419,13 @@ class SSHHost(object):
                              retval.cr_stdout,
                              retval.cr_stderr)
                 return -1
+        resources = self.sh_pcs_resources(log)
+        if resources is None:
+            log.cl_error("failed to get PCS resources on host [%s]",
+                         self.sh_hostname)
+            return -1
+        if len(resources) != 0:
+            log.cl_error("PCS resources %s still exist on host [%s]",
+                         resources, self.sh_hostname)
+            return -1
         return 0
