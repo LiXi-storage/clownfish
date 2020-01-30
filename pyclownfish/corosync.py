@@ -12,6 +12,7 @@ CLOWNFISH_AUTHKEY_FNAME = "authkey"
 COROSYNC_CONFIG_DIR = "/etc/corosync/"
 CLOWNFISH_COROSYNC_CONFIG = COROSYNC_CONFIG_DIR + CLOWNFISH_COROSYNC_FNAME
 CLOWNFISH_COROSYNC_AUTHKEY = COROSYNC_CONFIG_DIR + CLOWNFISH_AUTHKEY_FNAME
+CLOWNFISH_RESOURCE_PREFIX = "clf_"
 
 
 class LustreCorosyncCluster(install_common.InstallationCluster):
@@ -20,6 +21,7 @@ class LustreCorosyncCluster(install_common.InstallationCluster):
     Lustre HA cluster config.
     """
     def __init__(self, mgs_dict, lustres, bindnetaddr, workspace, mnt_path):
+        # Key is mgs_id, value is LustreMGS
         self.lcc_mgs_dict = mgs_dict
         self.lcc_lustres = lustres
         self.lcc_bindnetaddr = bindnetaddr
@@ -160,6 +162,7 @@ quorum {
         """
         Config and create Lustre resource.
         """
+        # pylint: disable=too-many-branches
         # stop corosync, stopping might fail
         for host in self.lcc_hosts.itervalues():
             command = "systemctl stop corosync"
@@ -227,5 +230,57 @@ quorum {
                          retval.cr_stderr)
             return -1
 
+        for mgs in self.lcc_mgs_dict.itervalues():
+            mgs_id = mgs.ls_service_name
+            resource_name = CLOWNFISH_RESOURCE_PREFIX + mgs_id
+            command = ("pcs resource create %s ocf:clownfish:lustre_server.sh mgs_id=%s --disabled" %
+                       (resource_name, mgs_id))
+            retval = host0.sh_run(log, command)
+            if retval.cr_exit_status != 0:
+                log.cl_error("failed to run command [%s] on host "
+                             "[%s], ret = [%d], stdout = [%s], stderr = "
+                             "[%s]",
+                             command,
+                             host0.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+
+            disable_hostnames = self.lcc_hosts.keys()
+            for instance in mgs.ls_instances.itervalues():
+                host = instance.lsi_host
+                hostname = host.sh_hostname
+                if hostname in disable_hostnames:
+                    disable_hostnames.remove(hostname)
+            for hostname in disable_hostnames:
+                command = ("pcs constraint location %s prefers %s=-INFINITY" %
+                           (resource_name, hostname))
+                retval = host0.sh_run(log, command)
+                if retval.cr_exit_status != 0:
+                    log.cl_error("failed to run command [%s] on host "
+                                 "[%s], ret = [%d], stdout = [%s], stderr = "
+                                 "[%s]",
+                                 command,
+                                 host0.sh_hostname,
+                                 retval.cr_exit_status,
+                                 retval.cr_stdout,
+                                 retval.cr_stderr)
+                    return -1
+
+            command = "pcs resource enable %s" % resource_name
+            retval = host0.sh_run(log, command)
+            if retval.cr_exit_status != 0:
+                log.cl_error("failed to run command [%s] on host "
+                             "[%s], ret = [%d], stdout = [%s], stderr = "
+                             "[%s]",
+                             command,
+                             host0.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+
         log.cl_info("corosync and pacemaker is started in the cluster")
+
         return 0
