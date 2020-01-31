@@ -429,7 +429,11 @@ if [ ! -z "$FSNAME" ]; then
         output=$(clf_local fsname=$FSNAME service_uuid=$SERVICE_UUID)
         if [ $? -ne 0 ]; then
                 ocf_log err "failure of clf_local"
-                exit $OCF_NOT_RUNNING
+                if [ "$OP" = "stop" ]; then
+                    exit $OCF_SUCCESS
+                else
+                    exit $OCF_NOT_RUNNING
+                fi
         fi
 elif [ ! -z "$MGS_ID" ]; then
         if [ ! -z "$UUID" ]; then
@@ -439,7 +443,11 @@ elif [ ! -z "$MGS_ID" ]; then
         output=$(clf_local mgs_id=$MGS_ID)
         if [ $? -ne 0 ]; then
                 ocf_log err "failure of clf_local"
-                exit $OCF_NOT_RUNNING
+                if [ "$OP" = "stop" ]; then
+                    exit $OCF_SUCCESS
+                else
+                    exit $OCF_NOT_RUNNING
+                fi
         fi
 else
         ocf_log err "either OCF_RESKEY_mgs_id or OCF_RESKEY_fsname should be specified"
