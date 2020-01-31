@@ -5,16 +5,17 @@ Common library for clownfish
 # pacemaker, corosync, pcs are needed by HA of Clownfish
 #
 CLOWNFISH_DEPENDENT_RPMS = ["corosync",
-                            "pacemaker",
-                            "pcs",
-                            "rsync",
+                            "crmsh",
                             "libyaml",
                             "PyYAML",
-                            "python2-filelock",
-                            "pytz",
-                            "python-dateutil",
-                            "zeromq3",
-                            "python2-zmq",
+                            "pacemaker",
+                            "pcs",
                             "protobuf-python",
+                            "python2-filelock",
+                            "python2-zmq",
+                            "python-dateutil",
                             "python-requests",
-                            "python-prettytable"]
+                            "python-prettytable",
+                            "pytz",
+                            "rsync",
+                            "zeromq3"]

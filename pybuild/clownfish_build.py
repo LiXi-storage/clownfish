@@ -219,6 +219,26 @@ def check_dir_content(log, host, directory, contents, cleanup=False):
     return 0
 
 
+def prepare_yum_repository(log, local_host, distro):
+    """
+    Prepare yum repository so as to download the RPMs later
+    """
+    assert distro == ssh_host.DISTRO_RHEL7
+    # Need crmsh RPM
+    command = "cd /etc/yum.repos.d/ && wget http://download.opensuse.org/repositories/network:/ha-clustering:/Stable/CentOS_CentOS-7/network:ha-clustering:Stable.repo"
+    retval = local_host.sh_run(log, command)
+    if retval.cr_exit_status:
+        log.cl_error("failed to run command [%s] on host [%s], "
+                     "ret = [%d], stdout = [%s], stderr = [%s]",
+                     command,
+                     local_host.sh_hostname,
+                     retval.cr_exit_status,
+                     retval.cr_stdout,
+                     retval.cr_stderr)
+        return -1
+    return 0
+
+
 def do_build(log, source_dir, config, config_fpath):
     """
     Build the ISO
@@ -246,6 +266,11 @@ def do_build(log, source_dir, config, config_fpath):
         return -1
 
     package_dir = iso_cached_dir + "/" + cstr.CSTR_PACKAGES
+
+    ret = prepare_yum_repository(log, local_host, distro)
+    if ret:
+        log.cl_error("failed to prepare yum repository")
+        return -1
 
     ret = download_dependent_rpms(log, local_host, package_dir)
     if ret:
