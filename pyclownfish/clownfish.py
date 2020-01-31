@@ -487,6 +487,12 @@ class ClownfishInstance(object):
         Prepare all hosts
         Locks should be held
         """
+        if self.ci_corosync_cluster is not None:
+            ret = self.ci_corosync_cluster.lcc_cleanup(log)
+            if ret:
+                log.cl_error("failed to cleanup Lustre corosync cluster")
+                return -1
+
         ret = self.ci_umount_all_nolock(log)
         if ret:
             log.cl_stderr("failed to umount all")

@@ -23,6 +23,7 @@ class LustreCorosyncCluster(install_common.InstallationCluster):
     def __init__(self, mgs_dict, lustres, bindnetaddr, workspace, mnt_path):
         # Key is mgs_id, value is LustreMGS
         self.lcc_mgs_dict = mgs_dict
+        # Key is fsname, value is LustreFilesystem
         self.lcc_lustres = lustres
         self.lcc_bindnetaddr = bindnetaddr
         self.lcc_corosync_config = ("""
@@ -86,6 +87,15 @@ quorum {
                                                     self.lcc_hosts.values(),
                                                     mnt_path)
         self.lcc_corosync_config += nodelist_string
+
+    def lcc_cleanup(self, log):
+        """
+        Cleanup the whole cluster
+        """
+        for host in self.lcc_hosts.itervalues():
+            command = "pcs cluster destroy"
+            host.sh_run(log, command)
+        return 0
 
     def lcc_config(self, log, workspace):
         """
@@ -158,11 +168,95 @@ quorum {
                 return -1
         return 0
 
+    def _ccl_resource_limit_hosts(self, log, pcs_host, resource_name,
+                                  lustre_service):
+        """
+        Limit the resource to run on some hosts
+        """
+        disable_hostnames = self.lcc_hosts.keys()
+        for instance in lustre_service.ls_instances.itervalues():
+            host = instance.lsi_host
+            hostname = host.sh_hostname
+            if hostname in disable_hostnames:
+                disable_hostnames.remove(hostname)
+        for hostname in disable_hostnames:
+            command = ("pcs constraint location %s prefers %s=-INFINITY" %
+                       (resource_name, hostname))
+            retval = pcs_host.sh_run(log, command)
+            if retval.cr_exit_status != 0:
+                log.cl_error("failed to run command [%s] on host "
+                             "[%s], ret = [%d], stdout = [%s], stderr = "
+                             "[%s]",
+                             command,
+                             pcs_host.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+        return 0
+
+    def _ccl_create_mdt_resource(self, log, host, mdt, use_template=True):
+        """
+        Create resource for Lustre MDT
+        """
+        service_name = mdt.ls_service_name
+        lustrefs = mdt.ls_lustre_fs
+        fsname = lustrefs.lf_fsname
+        template_name = CLOWNFISH_RESOURCE_PREFIX + fsname + "_MDT"
+        resource_name = CLOWNFISH_RESOURCE_PREFIX + service_name
+
+        if use_template:
+            type_string = "@" + template_name
+        else:
+            type_string = "ocf:clownfish:lustre_server.sh"
+        command = ("crm configure primitive %s %s params fsname=%s service_uuid=%s" %
+                   (resource_name, type_string, fsname, service_name))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+        retval = self._ccl_resource_limit_hosts(log, host, resource_name,
+                                                mdt)
+        if retval:
+            log.cl_error("failed to disable resource [%s] location of hosts for service [%s]",
+                         resource_name, mdt.ls_service_name)
+            return -1
+        return 0
+
+    def _ccl_create_mdt_template(self, log, host, fsname):
+        """
+        Create resource for Lustre MDT
+        """
+        # pylint: disable=no-self-use
+        template_name = CLOWNFISH_RESOURCE_PREFIX + fsname + "_MDT"
+        command = ("crm configure rsc_template %s ocf:clownfish:lustre_server.sh" %
+                   (template_name))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        return 0
+
     def ccl_start(self, log):
         """
         Config and create Lustre resource.
         """
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches,too-many-locals,too-many-statements
         # stop corosync, stopping might fail
         for host in self.lcc_hosts.itervalues():
             command = "systemctl stop corosync"
@@ -233,7 +327,7 @@ quorum {
         for mgs in self.lcc_mgs_dict.itervalues():
             mgs_id = mgs.ls_service_name
             resource_name = CLOWNFISH_RESOURCE_PREFIX + mgs_id
-            command = ("pcs resource create %s ocf:clownfish:lustre_server.sh mgs_id=%s --disabled" %
+            command = ("pcs resource create %s ocf:clownfish:lustre_server.sh mgs_id=%s" %
                        (resource_name, mgs_id))
             retval = host0.sh_run(log, command)
             if retval.cr_exit_status != 0:
@@ -247,15 +341,59 @@ quorum {
                              retval.cr_stderr)
                 return -1
 
-            disable_hostnames = self.lcc_hosts.keys()
-            for instance in mgs.ls_instances.itervalues():
-                host = instance.lsi_host
-                hostname = host.sh_hostname
-                if hostname in disable_hostnames:
-                    disable_hostnames.remove(hostname)
-            for hostname in disable_hostnames:
-                command = ("pcs constraint location %s prefers %s=-INFINITY" %
-                           (resource_name, hostname))
+            retval = self._ccl_resource_limit_hosts(log, host0, resource_name,
+                                                    mgs)
+            if retval:
+                log.cl_error("failed to disable resource [%s] location of hosts for service [%s]",
+                             resource_name, mgs.ls_service_name)
+                return -1
+
+        for lustrefs in self.lcc_lustres.itervalues():
+            fsname = lustrefs.lf_fsname
+            have_mdt = True
+            if lustrefs.lf_mgs is not None:
+                mgs_id = lustrefs.lf_mgs.ls_service_name
+                mgs_resource_name = CLOWNFISH_RESOURCE_PREFIX + mgs_id
+            else:
+                assert lustrefs.lf_mgs_mdt is not None
+                mgs_mdt = lustrefs.lf_mgs_mdt
+                mgs_mdt_id = mgs_mdt.ls_service_name
+                ret = self._ccl_create_mdt_resource(log, host0, mgs_mdt,
+                                                    use_template=False)
+                if ret:
+                    log.cl_error("failed to create Pacemaker resource for Lustre service [%s]",
+                                 mgs_mdt_id)
+                    return -1
+                mgs_resource_name = CLOWNFISH_RESOURCE_PREFIX + mgs_mdt_id
+
+                if len(lustrefs.lf_mdts) == 1:
+                    have_mdt = False
+
+            if have_mdt:
+                ret = self._ccl_create_mdt_template(log, host, fsname)
+                if ret:
+                    log.cl_error("failed to create MDT template for Lustre file system [%s]",
+                                 fsname)
+                    return -1
+
+                mdt_resource_string = "\("
+                for mdt in lustrefs.lf_mdts.itervalues():
+                    service_name = mdt.ls_service_name
+                    if mdt.lmdt_is_mgs:
+                        continue
+                    ret = self._ccl_create_mdt_resource(log, host0, mdt,
+                                                        use_template=True)
+                    if ret:
+                        log.cl_error("failed to create Pacemaker resource for Lustre service [%s]",
+                                     service_name)
+                        return -1
+                    resource_name = CLOWNFISH_RESOURCE_PREFIX + service_name
+                    mdt_resource_string += " " + resource_name + ":start"
+                mdt_resource_string += " \)"
+
+                order_id = CLOWNFISH_RESOURCE_PREFIX + fsname + "_mgs_before_mdt"
+                command = ("crm configure order %s Optional: %s %s" %
+                           (order_id, mgs_resource_name, mdt_resource_string))
                 retval = host0.sh_run(log, command)
                 if retval.cr_exit_status != 0:
                     log.cl_error("failed to run command [%s] on host "
@@ -267,20 +405,6 @@ quorum {
                                  retval.cr_stdout,
                                  retval.cr_stderr)
                     return -1
-
-            command = "pcs resource enable %s" % resource_name
-            retval = host0.sh_run(log, command)
-            if retval.cr_exit_status != 0:
-                log.cl_error("failed to run command [%s] on host "
-                             "[%s], ret = [%d], stdout = [%s], stderr = "
-                             "[%s]",
-                             command,
-                             host0.sh_hostname,
-                             retval.cr_exit_status,
-                             retval.cr_stdout,
-                             retval.cr_stderr)
-                return -1
-
         log.cl_info("corosync and pacemaker is started in the cluster")
 
         return 0

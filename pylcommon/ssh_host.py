@@ -2429,3 +2429,23 @@ class SSHHost(object):
                          resources, self.sh_hostname)
             return -1
         return 0
+
+    def sh_crm_resouce_order(self, log, order_id, first, then):
+        """
+        Set the resource order
+        """
+        # pylint: disable=too-many-arguments
+        command = ("crm configure order %s %s %s" %
+                   (order_id, first, then))
+        retval = self.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         self.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        return 0
