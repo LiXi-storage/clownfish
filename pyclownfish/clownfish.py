@@ -1063,7 +1063,13 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
             if host_id not in server_hosts:
                 server_hosts[host_id] = lustre_host
 
-            mnt = "/mnt/mgs_%s" % (mgs_id)
+            mnt = utils.config_value(instance_config, cstr.CSTR_MNT)
+            if mnt is None:
+                log.cl_error("no [%s] is configured for instance of "
+                             "MGS [%s], please correct file [%s]",
+                             cstr.CSTR_MNT, mgs_id, config_fpath)
+                return None
+
             lustre.LustreMGSInstance(log, mgs, lustre_host, device, mnt,
                                      nid, add_to_host=True)
 
@@ -1225,7 +1231,15 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                 if host_id not in server_hosts:
                     server_hosts[host_id] = lustre_host
 
-                mnt = "/mnt/%s_mdt_%s" % (fsname, mdt_index)
+                mnt = utils.config_value(instance_config, cstr.CSTR_MNT)
+                if mnt is None:
+                    log.cl_error("no [%s] is configured for an instance of "
+                                 "MDT with index [%s] of file system [%s], "
+                                 "please correct file [%s]",
+                                 cstr.CSTR_MNT, mdt_index, fsname,
+                                 config_fpath)
+                    return None
+
                 lustre.LustreMDTInstance(log, mdt, lustre_host, device, mnt,
                                          nid, add_to_host=True,
                                          zpool_create=zpool_create)
@@ -1328,7 +1342,7 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                         log.cl_error("no [%s] is configured for an instance of "
                                      "OST with index [%s] of file system [%s], "
                                      "please correct file [%s]",
-                                     cstr.CSTR_ZPOOL_CREATE, mdt_index, fsname,
+                                     cstr.CSTR_ZPOOL_CREATE, ost_index, fsname,
                                      config_fpath)
                         return None
 
@@ -1336,7 +1350,15 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                 if host_id not in server_hosts:
                     server_hosts[host_id] = lustre_host
 
-                mnt = "/mnt/%s_ost_%s" % (fsname, ost_index)
+                mnt = utils.config_value(instance_config, cstr.CSTR_MNT)
+                if mnt is None:
+                    log.cl_error("no [%s] is configured for an instance of "
+                                 "OST with index [%s] of file system [%s], "
+                                 "please correct file [%s]",
+                                 cstr.CSTR_MNT, ost_index, fsname,
+                                 config_fpath)
+                    return None
+
                 lustre.LustreOSTInstance(log, ost, lustre_host, device, mnt,
                                          nid, add_to_host=True,
                                          zpool_create=zpool_create)
