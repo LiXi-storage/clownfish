@@ -1175,6 +1175,19 @@ class TestCluster(object):
                 log.cl_error("failed to uninstall Clownfish RPMs on host "
                              "[%s]", host.crh_host.sh_hostname)
                 return -1
+
+            # free the space
+            command = "rm -fr %s" % LTEST_LAUNCH_LOG_DIR
+            retval = host.crh_host.sh_run(log, command)
+            if retval.cr_exit_status:
+                log.cl_error("failed to run command [%s] on host [%s], "
+                             "ret = [%d], stdout = [%s], stderr = [%s]",
+                             command,
+                             host.crh_host.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
         return 0
 
     def tc_run_test_without_removing_build_dir(self, log, launch_argument):
