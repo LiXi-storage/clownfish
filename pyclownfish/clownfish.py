@@ -29,7 +29,7 @@ class ClownfishServiceStatus(object):
     A global object for service status
     """
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, instance, log):
+    def __init__(self, instance, log, no_operation):
         self.css_instance = instance
         # Keys are the LustreService.ls_service_name, value is instance of
         # LustreServiceStatus
@@ -51,8 +51,9 @@ class ClownfishServiceStatus(object):
         self.css_fix_thread_waiting_number = 0
         self.css_fix_thread_number = 5
         self.css_log = log
-        self.css_start_status_threads()
-        self.css_start_fix_threads()
+        if not no_operation:
+            self.css_start_status_threads()
+            self.css_start_fix_threads()
 
     def css_service_status(self, service_name):
         """
@@ -315,8 +316,7 @@ class ClownfishInstance(object):
         self.ci_corosync_cluster = corosync_cluster
         # ISO path of Clownfish
         self.ci_iso_path = iso_path
-        if not no_operation:
-            self.ci_service_status = ClownfishServiceStatus(self, log)
+        self.ci_service_status = ClownfishServiceStatus(self, log, no_operation)
         self.ci_qos_dict = qos_dict
         # Local host to umount the ISO
         self.ci_local_host = local_host
@@ -1471,6 +1471,16 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
         corosync_cluster = corosync.LustreCorosyncCluster(mgs_dict, lustres,
                                                           bindnetaddr,
                                                           workspace, mnt_path)
+
+    monitor_enabled = utils.config_value(config,
+                                         cstr.CSTR_MONITOR_ENABLED)
+    if monitor_enabled is None:
+        monitor_enabled = True
+        log.cl_info("no [%s] is configured, enabling monitoring",
+                    cstr.CSTR_MONITOR_ENABLED)
+
+    if no_operation or not monitor_enabled:
+        no_operation = True
 
     return ClownfishInstance(log, workspace, lazy_prepare, hosts, mgs_dict,
                              lustres, ha_native, corosync_cluster, qos_dict,

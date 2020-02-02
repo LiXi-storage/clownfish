@@ -965,11 +965,13 @@ class LustreService(object):
             status.lss_list(log)
         log.cl_stdout("")
 
-        log.cl_stdout("Instances")
+        log.cl_stdout("Instances:")
         table = prettytable.PrettyTable()
         table.field_names = ["Instance name", "Host", "Device", "mounted", "NID"]
         for si in self.ls_instances.values():
-            if si == status.lss_mounted_instance:
+            if status is None:
+                mounted = cstr.CSTR_UNKNOWN
+            elif si == status.lss_mounted_instance:
                 mounted = cstr.CSTR_TRUE
             else:
                 mounted = cstr.CSTR_FALSE
