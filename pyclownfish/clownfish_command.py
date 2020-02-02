@@ -8,6 +8,7 @@ Command library of clownfish
 from pyclownfish import clownfish_command_common
 from pyclownfish import clownfish_subsystem_option
 from pyclownfish import clownfish_subsystem_fs
+from pyclownfish import clownfish_subsystem_service
 
 # Key: subsystem name. Value: calss Subsystem
 SUBSYSTEM_DICT = {}
@@ -408,3 +409,5 @@ SUBSYSTEM_DICT[clownfish_subsystem_option.SUBSYSTEM_OPTION_NAME] = \
     clownfish_subsystem_option.SUBSYSTEM_OPTION
 SUBSYSTEM_DICT[clownfish_subsystem_fs.SUBSYSTEM_FS_NAME] = \
     clownfish_subsystem_fs.SUBSYSTEM_FS
+SUBSYSTEM_DICT[clownfish_subsystem_service.SUBSYSTEM_SERVICE_NAME] = \
+    clownfish_subsystem_service.SUBSYSTEM_SERVICE

@@ -787,7 +787,7 @@ class LustreService(object):
         self.ls_instances[service_instance_name] = instance
         return 0
 
-    def ls_mount_nolock(self, log):
+    def ls_mount_nolock(self, log, hostname=None):
         """
         Mount this service, lock should be held
         """
@@ -797,13 +797,25 @@ class LustreService(object):
 
         instance = self._ls_mounted_instance(log)
         if instance is not None:
-            log.cl_stdout("service [%s] is already mounted on host [%s], no "
-                          "need to mount again", self.ls_service_name,
-                          instance.lsi_host.sh_hostname)
-            return 0
+            if hostname is None or instance.lsi_host.sh_hostname == hostname:
+                log.cl_stdout("service [%s] is already mounted on host [%s], no "
+                              "need to mount again", self.ls_service_name,
+                              instance.lsi_host.sh_hostname)
+                return 0
+            else:
+                ret = instance.lsi_umount(log)
+                if ret == 0:
+                    log.cl_stdout("umounted service [%s]",
+                                  self.ls_service_name)
+                else:
+                    log.cl_stderr("failed to umount service [%s]",
+                                  self.ls_service_name)
+                    return -1
 
         again = False
         for instance in self.ls_instances.values():
+            if hostname is not None and instance.lsi_host.sh_hostname != hostname:
+                continue
             if again:
                 log.cl_stdout("trying to mount another service instance of "
                               "[%s]", self.ls_service_name)
@@ -818,7 +830,7 @@ class LustreService(object):
                       self.ls_service_name)
         return -1
 
-    def ls_mount(self, log):
+    def ls_mount(self, log, hostname=None):
         """
         Mount this service
         """
@@ -827,7 +839,7 @@ class LustreService(object):
             log.cl_stderr("aborting mounting service [%s]",
                           self.ls_service_name)
             return -1
-        ret = self.ls_mount_nolock(log)
+        ret = self.ls_mount_nolock(log, hostname=hostname)
         handle.rwh_release()
 
         return ret
@@ -892,7 +904,7 @@ class LustreService(object):
         if ret == 0:
             log.cl_stdout("umounted service [%s]", service_name)
         else:
-            log.cl_stdout("failed to umount service [%s]", service_name)
+            log.cl_stderr("failed to umount service [%s]", service_name)
         return ret
 
     def ls_umount(self, log):
@@ -1048,6 +1060,7 @@ class LustreFilesystem(object):
         # Key is $HOSTNAME:$MNT, value is LustreClient
         self.lf_clients = {}
         self.lf_mgs = None
+        # For MGS it is $FSNAME-MGT, for others, service name
         self.lf_service_dict = {}
         self.lf_mgs_mdt = None
         self.lf_lock = rwlock.RWLock()
@@ -1311,7 +1324,8 @@ class LustreFilesystem(object):
             mgs_lock_handle.rwh_release()
         return ret
 
-    def _lf_mount_or_umount_service(self, log, service, mount=True):
+    def _lf_mount_or_umount_service(self, log, service, mount=True,
+                                    hostname=None):
         """
         Mount/Umount a service of a file system.
         Lock of MGS/fs/service will be handled properly
@@ -1352,7 +1366,7 @@ class LustreFilesystem(object):
             return -1
 
         if mount:
-            ret = service.ls_mount(log)
+            ret = service.ls_mount(log, hostname=hostname)
         else:
             ret = service.ls_umount(log)
 
@@ -1361,19 +1375,21 @@ class LustreFilesystem(object):
             mgs_lock_handle.rwh_release()
         return ret
 
-    def lf_mount_service(self, log, service):
+    def lf_mount_service(self, log, service, hostname=None):
         """
         Mount a service of a file system.
         Lock of MGS/fs/service will be handled properly
         """
-        return self._lf_mount_or_umount_service(log, service, mount=True)
+        return self._lf_mount_or_umount_service(log, service, mount=True,
+                                                hostname=hostname)
 
     def lf_umount_service(self, log, service):
         """
         Umount a service of a file system.
         Lock of MGS/fs/service will be handled properly
         """
-        return self._lf_mount_or_umount_service(log, service, mount=False)
+        return self._lf_mount_or_umount_service(log, service, mount=False,
+                                                hostname=None)
 
     def lf_umount_nolock(self, log):
         """

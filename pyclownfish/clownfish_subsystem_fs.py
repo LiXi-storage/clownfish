@@ -30,7 +30,7 @@ def fs_argument(connection, complete_status):
 
 def clownfish_command_filesystem_usage(log, command):
     """
-    Run command on the filesystems
+    Usage of command on file system
     """
     log.cl_stdout("""Usage: %s %s <filesystem>...
 Run %s on Lustre filesystem(s)""" %
@@ -131,7 +131,7 @@ SUBSYSTEM_FS.ss_command_dict[CLOWNFISH_FS_COMMNAD_HELP] = COMMAND
 
 def fs_service_argument(connection, complete_status):
     """
-    Return argument that can be enabled
+    Return argument that can be fsname or filesystem's service
     """
     instance = connection.cc_instance
     fsnames = instance.ci_lustres.keys()
@@ -160,7 +160,7 @@ def fs_service_argument(connection, complete_status):
 
 def fs_service_usage(log, command):
     """
-    Run command on the filesystems
+    Usage of command on filesystem or service
     """
     log.cl_stdout("""Usage: %s %s <servicename>...
         servicename: a fsname or a Lustre service name, e.g. fsname-OST000a""" %
@@ -169,7 +169,7 @@ def fs_service_usage(log, command):
 
 def fs_service_list(connection, args):
     """
-    list the service(s) of a filesystem
+    list the filesystem(s) or service(s)
     """
     # pylint: disable=too-many-branches
     log = connection.cc_command_log

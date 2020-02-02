@@ -632,8 +632,23 @@ class ClownfishInstance(object):
             table.add_row([lustrefs.lf_fsname])
         log.cl_stdout(table)
 
+    def ci_name2service(self, service_name):
+        """
+        Find the service by name
+        """
+        for lustrefs in self.ci_lustres.itervalues():
+            for service in lustrefs.lf_service_dict.itervalues():
+                if service.ls_service_name == service_name:
+                    return service
 
-def parse_qos_user_config(log, lustre_fs, qos_user_config, config_fpath,
+        for mgs in self.ci_mgs_dict.itervalues():
+            if mgs.ls_service_name == service_name:
+                return mgs
+        return None
+
+
+def parse_qos_user_config(log, lustre_fs, qos_user_config,
+                          config_fpath,
                           qos_users, interval,
                           default_mbps_threshold, default_iops_threshold,
                           default_throttled_oss_rpc_rate,
