@@ -225,17 +225,41 @@ def prepare_yum_repository(log, local_host, distro):
     """
     assert distro == ssh_host.DISTRO_RHEL7
     # Need crmsh RPM
-    command = "cd /etc/yum.repos.d/ && wget http://download.opensuse.org/repositories/network:/ha-clustering:/Stable/CentOS_CentOS-7/network:ha-clustering:Stable.repo"
-    retval = local_host.sh_run(log, command)
-    if retval.cr_exit_status:
-        log.cl_error("failed to run command [%s] on host [%s], "
-                     "ret = [%d], stdout = [%s], stderr = [%s]",
-                     command,
-                     local_host.sh_hostname,
-                     retval.cr_exit_status,
-                     retval.cr_stdout,
-                     retval.cr_stderr)
-        return -1
+    if not os.path.exists("/etc/yum.repos.d/network:ha-clustering:Stable.repo"):
+        command = "cd /etc/yum.repos.d/ && wget https://download.opensuse.org/repositories/network:ha-clustering:Stable/CentOS_CentOS-7/network:ha-clustering:Stable.repo"
+        retval = local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        # The mirror can't download from the mirror
+        command = "sed 's/baseurl/\#baseurl/' -i /etc/yum.repos.d/network:ha-clustering:Stable.repo"
+        retval = local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        command = "echo baseurl=http://mirror.yandex.ru/opensuse/repositories/network:/ha-clustering:/Stable/CentOS_CentOS-7/ >> /etc/yum.repos.d/network:ha-clustering:Stable.repo"
+        retval = local_host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         local_host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
     return 0
 
 
