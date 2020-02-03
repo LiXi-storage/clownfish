@@ -689,6 +689,7 @@ class TestCluster(object):
             mgs_instance_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
             mgs_instance_config[cstr.CSTR_DEVICE] = DEV_MAPPER_PREFIX + self.tc_mgt_disk_id
             mgs_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
+            mgs_instance_config[cstr.CSTR_MNT] = "/mnt/" + self.tc_cluster_id
             mgs_instance_configs.append(mgs_instance_config)
         mgs_config[cstr.CSTR_INSTANCES] = mgs_instance_configs
         mgs_configs.append(mgs_config)
@@ -723,6 +724,10 @@ class TestCluster(object):
                     zpool = disk_id
                     device = zpool + ("/mdt%d" % mdt_index)
                 mdt_instance_config[cstr.CSTR_DEVICE] = device
+                mdt_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
+                                                      self.tc_fs0_fsname +
+                                                      "_mdt" +
+                                                      str(mdt_index))
                 mdt_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
                 mdt_instance_configs.append(mdt_instance_config)
                 if not is_ldiskfs:
@@ -763,6 +768,10 @@ class TestCluster(object):
                     zpool = disk_id
                     device = zpool + ("/ost%d" % ost_index)
                 ost_instance_config[cstr.CSTR_DEVICE] = device
+                ost_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
+                                                      self.tc_fs0_fsname +
+                                                      "_ost" +
+                                                      str(ost_index))
                 ost_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
                 ost_instance_configs.append(ost_instance_config)
                 if not is_ldiskfs:
@@ -819,6 +828,10 @@ class TestCluster(object):
                     device = zpool + ("/mdt%d" % mdt_index)
                 mdt_instance_config[cstr.CSTR_DEVICE] = device
                 mdt_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
+                mdt_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
+                                                      self.tc_fs1_fsname +
+                                                      "_mdt" +
+                                                      str(mdt_index))
                 mdt_instance_configs.append(mdt_instance_config)
                 if not is_ldiskfs:
                     zpool_create = ("zpool create -f %s %s" %
@@ -857,6 +870,10 @@ class TestCluster(object):
                     zpool = disk_id
                     device = zpool + ("/ost%d" % ost_index)
                 ost_instance_config[cstr.CSTR_DEVICE] = device
+                ost_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
+                                                      self.tc_fs1_fsname +
+                                                      "_ost" +
+                                                      str(ost_index))
                 ost_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
                 ost_instance_configs.append(ost_instance_config)
                 if not is_ldiskfs:
