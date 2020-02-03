@@ -5,6 +5,7 @@
 Library for Corosync
 """
 from pylcommon import install_common
+from pylcommon import constants
 
 
 CLOWNFISH_COROSYNC_FNAME = "corosync.conf"
@@ -129,6 +130,16 @@ quorum {
 
         # sync corosync.conf and authkey to all ha hosts
         for host in self.lcc_hosts.itervalues():
+            ret = host.sh_send_file(log, constants.CLOWNFISH_CONFIG,
+                                    constants.CLOWNFISH_CONFIG)
+            if ret:
+                log.cl_error("failed to send file [%s] on local host to "
+                             "file [%s] on host [%s]",
+                             constants.CLOWNFISH_CONFIG,
+                             constants.CLOWNFISH_CONFIG,
+                             host.sh_hostname)
+                return ret
+
             ret = host.sh_send_file(log, corosync_config_fpath,
                                     CLOWNFISH_COROSYNC_CONFIG)
             if ret:
