@@ -21,8 +21,6 @@ from pyclownfish import clownfish_qos
 from pyclownfish import corosync
 from pyclownfish import clownfish_common
 
-CLOWNFISH_STATUS_CHECK_INTERVAL = 1
-
 
 class ClownfishServiceStatus(object):
     """
@@ -114,7 +112,7 @@ class ClownfishServiceStatus(object):
 
             self.css_update_status(status)
 
-            time.sleep(CLOWNFISH_STATUS_CHECK_INTERVAL)
+            time.sleep(lustre.LUSTRE_SERVICE_STATUS_CHECK_INTERVAL)
         log.cl_info("thread that checks status of service [%s] exited",
                     service_name)
         return 0

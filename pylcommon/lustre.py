@@ -41,6 +41,8 @@ TBF_TYPE_NID = "nid"
 BACKFSTYPE_ZFS = "zfs"
 BACKFSTYPE_LDISKFS = "ldiskfs"
 
+LUSTRE_SERVICE_STATUS_CHECK_INTERVAL = 10
+
 
 def lustre_string2index(index_string):
     """
@@ -618,8 +620,20 @@ class LustreServiceStatus(object):
     def __init__(self, service):
         self.lss_service = service
         # The time the status is updated
-        self.lss_update_time = time.time()
+        self.lss_update_time = None
         self.lss_mounted_instance = None
+
+    def lss_outdated(self):
+        """
+        Whether the status is outdated
+        """
+        if self.lss_update_time is None:
+            return True
+        now = time.time()
+        elapsed = now - self.lss_update_time
+        if elapsed < 0 or elapsed > LUSTRE_SERVICE_STATUS_CHECK_INTERVAL + 2:
+            return True
+        return False
 
     def lss_check(self, log):
         """
@@ -687,14 +701,14 @@ class LustreServiceStatus(object):
         instance = self.lss_mounted_instance
         log.cl_stdout("Service status:")
         if instance is None:
-            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_FALSE)
+            log.cl_stdout("%-20s %s", "  Mounted:", cstr.CSTR_FALSE)
         else:
-            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_TRUE)
+            log.cl_stdout("%-20s %s", "  Mounted:", cstr.CSTR_TRUE)
             log.cl_stdout("%-20s %s",
-                          "Mounted instance:",
+                          "  Mounted instance:",
                           instance.lsi_service_instance_name)
             log.cl_stdout("%-20s %s",
-                          "Update time:",
+                          "  Update time:",
                           self.lss_update_time)
 
 
@@ -968,15 +982,9 @@ class LustreService(object):
                       self.ls_backfstype)
         service_status = instance.ci_service_status
         status = service_status.css_service_status(self.ls_service_name)
-        if status is None:
-            log.cl_stdout("%-20s %s",
-                          "Service status:",
-                          cstr.CSTR_UNKNOWN)
-        else:
-            log.cl_stdout("")
-            status.lss_list(log)
-        log.cl_stdout("")
-
+        if status is None or status.lss_outdated():
+            status = LustreServiceStatus(self)
+            status.lss_check(log)
         log.cl_stdout("Instances:")
         table = prettytable.PrettyTable()
         table.field_names = ["Instance name", "Host", "Device", "mounted", "NID"]
@@ -993,6 +1001,7 @@ class LustreService(object):
                            mounted,
                            si.lsi_nid])
         log.cl_stdout(table)
+        status.lss_list(log)
         return 0
 
 
