@@ -282,33 +282,76 @@ class LustreServiceInstance(object):
                       instance_name, service_name, hostname)
         return 0
 
-    def lsi_format(self, log):
+    def _lsi_zpool_import_export(self, log, export=True):
         """
-        Format this Lustre service device
+        Import or export the zpool of this Lustre service device
+        Read lock of the host and write lock of the instance should be held
         """
-        instance_name = self.lsi_service_instance_name
         service = self.lsi_service
         service_name = service.ls_service_name
         host = self.lsi_host
         hostname = host.sh_hostname
+        zpool_name = service.ls_zpool_name
+        if export:
+            operate = "export"
+        else:
+            operate = "import"
 
-        host_handle = host.lsh_lock.rwl_reader_acquire(log)
-        if host_handle is None:
-            log.cl_stderr("aborting formating instance [%s] of service [%s] "
-                          "on host [%s]", instance_name, service_name,
+        if service.ls_backfstype != BACKFSTYPE_ZFS:
+            log.cl_stderr("Lustre service [%s] is not based on ZFS, should "
+                          "not %s", service_name, operate)
+            return -1
+
+        ret = self._lsi_check_zpool_imported(log)
+        if ret < 0:
+            log.cl_stderr("failed to check whether zpool of Lustre service "
+                          "[%s] imported or not on host [%s]", service_name,
                           hostname)
             return -1
-        instance_handle = self.lsi_lock.rwl_writer_acquire(log)
-        if instance_handle is None:
-            host_handle.rwh_release()
-            log.cl_stderr("aborting formating instance [%s] of service [%s] "
-                          "on host [%s]", instance_name, service_name,
-                          hostname)
+
+        if ret and not export:
+            log.cl_stdout("zpool [%s] of Lustre service [%s] is already "
+                          "imported on host [%s], no need to import again",
+                          zpool_name, service_name, hostname)
+            return 0
+        elif ret == 0 and export:
+            log.cl_stdout("zpool [%s] of Lustre service [%s] is not "
+                          "import on host [%s], no need to export",
+                          zpool_name, service_name, hostname)
+            return 0
+
+        log.cl_stdout("%sing zpool [%s] of Lustre service [%s] on host [%s]",
+                      operate, zpool_name, service_name, hostname)
+
+        command = ("zpool %s %s" % (operate, service.ls_zpool_name))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_stderr("failed to run command [%s] on host [%s], "
+                          "ret = [%d], stdout = [%s], stderr = [%s]",
+                          command,
+                          hostname,
+                          retval.cr_exit_status,
+                          retval.cr_stdout,
+                          retval.cr_stderr)
             return -1
-        ret = self._lsi_format(log)
-        instance_handle.rwh_release()
-        host_handle.rwh_release()
-        return ret
+
+        log.cl_stdout("%sed zpool [%s] of Lustre service [%s] on host [%s]",
+                      operate, zpool_name, service_name, hostname)
+        return 0
+
+    def _lsi_zpool_import(self, log):
+        """
+        Import the zpool of this Lustre service device
+        Read lock of the host and write lock of the instance should be held
+        """
+        return self._lsi_zpool_import_export(log, export=False)
+
+    def _lsi_zpool_export(self, log):
+        """
+        Export the zpool of this Lustre service device
+        Read lock of the host and write lock of the instance should be held
+        """
+        return self._lsi_zpool_import_export(log, export=True)
 
     def _lsi_mount(self, log):
         """
@@ -322,6 +365,15 @@ class LustreServiceInstance(object):
 
         log.cl_stdout("mounting Lustre service [%s] on host [%s]",
                       service_name, hostname)
+
+        if service.ls_backfstype == BACKFSTYPE_ZFS:
+            ret = self._lsi_zpool_import(log)
+            if ret:
+                log.cl_stderr("failed to import zpool of Lustre service [%s] "
+                              "on host [%s]", service_name,
+                              hostname)
+                return ret
+
         command = ("mkdir -p %s && mount -t lustre %s %s" %
                    (self.lsi_mnt, self.lsi_device, self.lsi_mnt))
         retval = host.sh_run(log, command)
@@ -337,34 +389,6 @@ class LustreServiceInstance(object):
         log.cl_stdout("mounted Lustre service [%s] on host [%s]", service_name,
                       hostname)
         return 0
-
-    def lsi_mount(self, log):
-        """
-        Mount this Lustre service device
-        """
-        instance_name = self.lsi_service_instance_name
-        service = self.lsi_service
-        service_name = service.ls_service_name
-        host = self.lsi_host
-        hostname = host.sh_hostname
-
-        host_handle = host.lsh_lock.rwl_reader_acquire(log)
-        if host_handle is None:
-            log.cl_stderr("aborting mounting instance [%s] of service [%s] "
-                          "on host [%s]", instance_name, service_name,
-                          hostname)
-            return -1
-        instance_handle = self.lsi_lock.rwl_writer_acquire(log)
-        if instance_handle is None:
-            host_handle.rwh_release()
-            log.cl_stderr("aborting mounting instance [%s] of service [%s] "
-                          "on host [%s]", instance_name, service_name,
-                          hostname)
-            return -1
-        ret = self._lsi_mount(log)
-        instance_handle.rwh_release()
-        host_handle.rwh_release()
-        return ret
 
     def _lsi_umount(self, log):
         """
@@ -391,13 +415,24 @@ class LustreServiceInstance(object):
                           retval.cr_stderr)
             return -1
 
+        if service.ls_backfstype == BACKFSTYPE_ZFS:
+            ret = self._lsi_zpool_export(log)
+            if ret:
+                log.cl_stderr("failed to export zpool of Lustre service [%s] "
+                              "on host [%s]", service_name,
+                              hostname)
+                return ret
+
         log.cl_stdout("umounted Lustre service [%s] on host [%s]",
                       service_name, hostname)
         return 0
 
-    def lsi_umount(self, log):
+    def _lsi_operate(self, log, mount=False, umount=False, export_zpool=False,
+                     format_device=False):
         """
-        Umount this Lustre service device
+        Operate on this Lustre service device
+        Read lock of the host and write lock of the instance will be held
+        during the operation
         """
         instance_name = self.lsi_service_instance_name
         service = self.lsi_service
@@ -418,10 +453,43 @@ class LustreServiceInstance(object):
                           "on host [%s]", instance_name, service_name,
                           hostname)
             return -1
-        ret = self._lsi_umount(log)
+        ret = 0
+        if format_device:
+            ret = self._lsi_format(log)
+        if ret == 0 and mount:
+            ret = self._lsi_mount(log)
+        if ret == 0 and umount:
+            ret = self._lsi_umount(log)
+        if ret == 0 and export_zpool:
+            ret = self._lsi_zpool_export(log)
+
         instance_handle.rwh_release()
         host_handle.rwh_release()
         return ret
+
+    def lsi_format(self, log):
+        """
+        Format this Lustre service device
+        """
+        return self._lsi_operate(log, format_device=True)
+
+    def lsi_mount(self, log):
+        """
+        Mount this Lustre service device
+        """
+        return self._lsi_operate(log, mount=True)
+
+    def lsi_umount(self, log):
+        """
+        Umount this Lustre service device
+        """
+        return self._lsi_operate(log, umount=True)
+
+    def lsi_zpool_export(self, log):
+        """
+        Export the zpool of this Lustre service device
+        """
+        return self._lsi_operate(log, export_zpool=True)
 
     def _lsi_check_mounted(self, log):
         """
@@ -438,7 +506,7 @@ class LustreServiceInstance(object):
         service_type = service.ls_service_type
         service_instance_name = self.lsi_service_instance_name
 
-        server_pattern = (r"^(?P<device>\S+) (?P<mount_point>\S+) lustre .+$")
+        server_pattern = (r"^(?P<device>\S+) (?P<mount_point>\S+) lustre (?P<options>\S+) .+$")
         server_regular = re.compile(server_pattern)
 
         client_pattern = (r"^.+:/(?P<fsname>\S+) (?P<mount_point>\S+) lustre .+$")
@@ -555,11 +623,39 @@ class LustreServiceInstance(object):
 
         return ret
 
-    def lsi_check_mounted(self, log):
+    def _lsi_check_zpool_imported(self, log):
         """
-        Return 1 when service is mounted
-        Return 0 when service is not mounted
+        Return 1 when zpool of the service is imported
+        Return 0 when zpool of the service is not imported
         Return negative when error
+        Read lock of the host and read lock of the instance should be held
+        """
+        host = self.lsi_host
+        hostname = host.sh_hostname
+        service = self.lsi_service
+        zpool_name = service.ls_zpool_name
+        command = "zpool list %s" % zpool_name
+        retval = host.sh_run(log, command)
+        output = retval.cr_stderr.strip()
+        if retval.cr_exit_status and output.endswith("no such pool"):
+            return 0
+        elif retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command, hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        return 1
+
+    def _lsi_check(self, log, check_mounted=False, check_zpool_imported=False):
+
+        """
+        If any of the check_* option is true, check the option.
+        If any of the check fails, return 0.
+        If all checks pass, return 1.
+        Return negative when error.
         """
         instance_name = self.lsi_service_instance_name
         service = self.lsi_service
@@ -569,22 +665,47 @@ class LustreServiceInstance(object):
 
         host_handle = host.lsh_lock.rwl_reader_acquire(log)
         if host_handle is None:
-            log.cl_stderr("aborting checking whether instance [%s] of "
-                          "service [%s] is moutned on host [%s]",
+            log.cl_stderr("aborting checking instance [%s] of "
+                          "service [%s] on host [%s]",
                           instance_name, service_name, hostname)
             return -1
         instance_handle = self.lsi_lock.rwl_reader_acquire(log)
         if instance_handle is None:
             host_handle.rwh_release()
-            log.cl_stderr("aborting checking whether instance [%s] of "
-                          "service [%s] is moutned on host [%s]",
+            log.cl_stderr("aborting checking instance [%s] of "
+                          "service [%s] on host [%s]",
                           instance_name, service_name, hostname)
             return -1
 
-        ret = self._lsi_check_mounted(log)
+        retval = 1
+        if check_mounted:
+            ret = self._lsi_check_mounted(log)
+            if ret != 1:
+                retval = ret
+        if check_zpool_imported:
+            ret = self._lsi_check_zpool_imported(log)
+            if ret != 1:
+                retval = ret
         instance_handle.rwh_release()
         host_handle.rwh_release()
-        return ret
+        return retval
+
+    def lsi_check_mounted(self, log):
+        """
+        Return 1 when service is mounted
+        Return 0 when service is not mounted
+        Return negative when error
+        """
+        return self._lsi_check(log, check_mounted=True)
+
+    def lsi_check_zpool_imported(self, log):
+        """
+        Return 1 when zpool of the service is imported
+        Return 0 when zpool of the service is not imported
+        Return negative when error
+        The device is assumed to be ZFS
+        """
+        return self._lsi_check(log, check_zpool_imported=True)
 
     def lsi_encode(self, need_status, status_funct, need_structure):
         """
@@ -622,6 +743,7 @@ class LustreServiceStatus(object):
         # The time the status is updated
         self.lss_update_time = None
         self.lss_mounted_instance = None
+        self.lss_zpool_imported_instance = None
 
     def lss_outdated(self):
         """
@@ -646,6 +768,9 @@ class LustreServiceStatus(object):
                          service.ls_service_name,
                          instance.lsi_host.sh_hostname)
         self.lss_mounted_instance = instance
+        if instance is None and service.ls_backfstype == BACKFSTYPE_ZFS:
+            instance = service.ls_zpool_imported_instance(log)
+            self.lss_zpool_imported_instance = instance
         self.lss_update_time = time.time()
 
     def lss_has_problem(self):
@@ -698,17 +823,28 @@ class LustreServiceStatus(object):
         """
         Print information about the status of the service
         """
+        service = self.lss_service
+
         instance = self.lss_mounted_instance
-        log.cl_stdout("Service status:")
         if instance is None:
-            log.cl_stdout("%-20s %s", "  Mounted:", cstr.CSTR_FALSE)
+            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_FALSE)
+            if service.ls_backfstype == BACKFSTYPE_ZFS:
+                instance = self.lss_zpool_imported_instance
+                if instance is None:
+                    log.cl_stdout("%-20s %s", "Zpool imported:",
+                                  cstr.CSTR_FALSE)
+                else:
+                    log.cl_stdout("%-20s %s", "Zpool imported:",
+                                  cstr.CSTR_TRUE)
+                    log.cl_stdout("%-20s %s", "Imported instance:",
+                                  instance.lsi_service_instance_name)
         else:
-            log.cl_stdout("%-20s %s", "  Mounted:", cstr.CSTR_TRUE)
+            log.cl_stdout("%-20s %s", "Mounted:", cstr.CSTR_TRUE)
             log.cl_stdout("%-20s %s",
-                          "  Mounted instance:",
+                          "Mounted instance:",
                           instance.lsi_service_instance_name)
             log.cl_stdout("%-20s %s",
-                          "  Update time:",
+                          "Update time:",
                           self.lss_update_time)
 
 
@@ -718,13 +854,22 @@ class LustreService(object):
     """
     # pylint: disable=too-many-instance-attributes
     def __init__(self, log, lustre_fs, service_type, index,
-                 backfstype):
+                 backfstype, zpool_name=None):
         # pylint: disable=too-many-arguments
         self.ls_lustre_fs = lustre_fs
         # Keys are lsi_service_instance_name, values are LustreServiceInstance
         self.ls_instances = {}
         self.ls_service_type = service_type
         self.ls_lock = rwlock.RWLock()
+        if backfstype == BACKFSTYPE_LDISKFS:
+            assert zpool_name is None
+        elif backfstype == BACKFSTYPE_ZFS:
+            assert zpool_name is not None
+        else:
+            reason = ("invalid backfstype [%s]" % (backfstype))
+            log.cl_error(reason)
+            raise Exception(reason)
+        self.ls_zpool_name = zpool_name
         if service_type == LUSTRE_SERVICE_TYPE_MGT:
             assert index == 0
             self.ls_index_string = "MGS"
@@ -805,6 +950,7 @@ class LustreService(object):
         """
         Mount this service, lock should be held
         """
+        # pylint: disable=too-many-branches
         log.cl_stdout("mounting service [%s]", self.ls_service_name)
         if len(self.ls_instances) == 0:
             return -1
@@ -825,6 +971,20 @@ class LustreService(object):
                     log.cl_stderr("failed to umount service [%s]",
                                   self.ls_service_name)
                     return -1
+
+        if self.ls_backfstype == BACKFSTYPE_ZFS:
+            instance = self._ls_zpool_imported_instance(log)
+            if instance is not None:
+                if hostname is None:
+                    hostname = instance.lsi_host.sh_hostname
+                elif instance.lsi_host.sh_hostname != hostname:
+                    ret = instance.lsi_zpool_export(log)
+                    if ret:
+                        log.cl_stderr("failed to exported zpool of service "
+                                      "[%s] on hostname [%s]",
+                                      self.ls_service_name,
+                                      instance.lsi_host.sh_hostname)
+                        return -1
 
         again = False
         for instance in self.ls_instances.values():
@@ -901,6 +1061,52 @@ class LustreService(object):
         handle.rwh_release()
         return instance
 
+    def _ls_zpool_imported_instance(self, log):
+        """
+        If the device is ZFS, return the instance that has been imported
+        If no instance is imported or not ZFS, return None
+        Read lock of the service should be held when calling this function
+        """
+        if self.ls_backfstype != BACKFSTYPE_ZFS:
+            return None
+
+        if len(self.ls_instances) == 0:
+            return None
+
+        imported_instances = []
+        for instance in self.ls_instances.values():
+            ret = instance.lsi_check_zpool_imported(log)
+            if ret < 0:
+                log.cl_error("failed to check whether ZFS of service"
+                             "[%s] is imported on host [%s]",
+                             self.ls_service_name,
+                             instance.lsi_host.sh_hostname)
+            elif ret > 0:
+                log.cl_debug("ZFS of service [%s] is imported on host "
+                             "[%s]", self.ls_service_name,
+                             instance.lsi_host.sh_hostname)
+                imported_instances.append(instance)
+
+        if len(imported_instances) == 0:
+            return None
+        else:
+            assert len(imported_instances) == 1
+            return imported_instances[0]
+
+    def ls_zpool_imported_instance(self, log):
+        """
+        If the device is ZFS, return the instance that has been imported
+        If no instance is imported or not ZFS, return None
+        """
+        handle = self.ls_lock.rwl_reader_acquire(log)
+        if handle is None:
+            log.cl_stderr("aborting checking imported instance of service [%s]",
+                          self.ls_service_name)
+            return -1
+        instance = self._ls_zpool_imported_instance(log)
+        handle.rwh_release()
+        return instance
+
     def ls_umount_nolock(self, log):
         """
         Umount this service, lock should be held
@@ -909,17 +1115,33 @@ class LustreService(object):
 
         log.cl_stdout("umounting service [%s]", service_name)
         instance = self._ls_mounted_instance(log)
-        if instance is None:
+        if instance is not None:
+            ret = instance.lsi_umount(log)
+            if ret:
+                log.cl_stderr("failed to umount service [%s]", service_name)
+                return ret
+            log.cl_stdout("umounted service [%s]", service_name)
+            return 0
+        else:
             log.cl_stdout("service [%s] is not mounted on any host, no need "
                           "to umount again", self.ls_service_name)
-            return 0
 
-        ret = instance.lsi_umount(log)
-        if ret == 0:
-            log.cl_stdout("umounted service [%s]", service_name)
-        else:
-            log.cl_stderr("failed to umount service [%s]", service_name)
-        return ret
+        if self.ls_backfstype == BACKFSTYPE_ZFS:
+            instance = self._ls_zpool_imported_instance(log)
+            if instance is None:
+                log.cl_stdout("zpool of service [%s] is not imported on any "
+                              "host, no need to export again",
+                              self.ls_service_name)
+                return 0
+
+            ret = instance.lsi_zpool_export(log)
+            if ret == 0:
+                log.cl_stdout("exported zpool of service [%s]", service_name)
+            else:
+                log.cl_stderr("failed to export zpool of service [%s]",
+                              service_name)
+                return ret
+        return 0
 
     def ls_umount(self, log):
         """
@@ -1010,9 +1232,9 @@ class LustreMGS(LustreService):
     Lustre MGS service not combined to MDT
     """
     # pylint: disable=too-few-public-methods
-    def __init__(self, log, mgs_id, backfstype):
+    def __init__(self, log, mgs_id, backfstype, zpool_name=None):
         super(LustreMGS, self).__init__(log, None, LUSTRE_SERVICE_TYPE_MGT, 0,
-                                        backfstype)
+                                        backfstype, zpool_name=zpool_name)
         # Key is file system name, value is LustreFilesystem
         self.lmgs_filesystems = {}
         self.ls_service_name = mgs_id
@@ -1680,10 +1902,11 @@ class LustreMDT(LustreService):
     """
     # pylint: disable=too-few-public-methods
     # index: 0, 1, etc.
-    def __init__(self, log, lustre_fs, index, backfstype, is_mgs=False):
+    def __init__(self, log, lustre_fs, index, backfstype, is_mgs=False,
+                 zpool_name=None):
         # pylint: disable=too-many-arguments
         super(LustreMDT, self).__init__(log, lustre_fs, LUSTRE_SERVICE_TYPE_MDT,
-                                        index, backfstype)
+                                        index, backfstype, zpool_name=zpool_name)
         self.lmdt_is_mgs = is_mgs
 
         ret = lustre_fs.lf_mdt_add(log, self.ls_service_name, self)
@@ -1752,10 +1975,10 @@ class LustreOST(LustreService):
     """
     # pylint: disable=too-few-public-methods
     # index: 0, 1, etc.
-    def __init__(self, log, lustre_fs, index, backfstype):
+    def __init__(self, log, lustre_fs, index, backfstype, zpool_name=None):
         # pylint: disable=too-many-arguments
         super(LustreOST, self).__init__(log, lustre_fs, LUSTRE_SERVICE_TYPE_OST,
-                                        index, backfstype)
+                                        index, backfstype, zpool_name=zpool_name)
         ret = lustre_fs.lf_ost_add(self.ls_service_name, self)
         if ret:
             reason = ("OST [%s] already exists in file system [%s]" %
@@ -2715,7 +2938,7 @@ class LustreServerHost(ssh_host.SSHHost):
         """
         # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         # pylint: disable=too-many-arguments
-        server_pattern = (r"^(?P<device>\S+) (?P<mount_point>\S+) lustre .+$")
+        server_pattern = (r"^(?P<device>\S+) (?P<mount_point>\S+) lustre (?P<options>\S+) .+$")
         server_regular = re.compile(server_pattern)
 
         client_pattern = (r"^.+:/(?P<fsname>\S+) (?P<mount_point>\S+) lustre .+$")
@@ -2750,6 +2973,8 @@ class LustreServerHost(ssh_host.SSHHost):
 
             device = match.group("device")
             mount_point = match.group("mount_point")
+            option_string = match.group("options")
+            option_pairs = option_string.split(",")
 
             match = client_regular.match(line)
             if match:
@@ -2765,6 +2990,22 @@ class LustreServerHost(ssh_host.SSHHost):
                 log.cl_debug("client [%s] mounted on dir [%s] of host [%s]",
                              fsname, mount_point, self.sh_hostname)
                 continue
+
+            if "osd=osd-zfs" in option_pairs:
+                backfstype = BACKFSTYPE_ZFS
+                fields = device.split("/")
+                if len(fields) != 2:
+                    log.cl_error("invalid device [%s] for Lustre service on ZFS",
+                                 device)
+                    return -1
+                zpool_name = fields[0]
+            elif "osd=osd-ldiskfs" in option_pairs:
+                backfstype = BACKFSTYPE_LDISKFS
+                zpool_name = None
+            else:
+                log.cl_error("not able to get the backfstype for device [%s] on "
+                             "host [%s]", device, self.sh_hostname)
+                return -1
 
             ret, label = self.lsh_lustre_device_label(log, device)
             if ret:
@@ -2786,8 +3027,8 @@ class LustreServerHost(ssh_host.SSHHost):
                     osti = self.lsh_ost_instances[ost_id]
                 else:
                     lustre_fs = LustreFilesystem(fsname)
-
-                    ost = LustreOST(log, lustre_fs, ost_index, None)
+                    ost = LustreOST(log, lustre_fs, ost_index, backfstype,
+                                    zpool_name=zpool_name)
                     osti = LustreOSTInstance(log, ost, self, device, mount_point,
                                              None, add_to_host=add_found)
                 osts[ost_id] = osti
@@ -2809,7 +3050,8 @@ class LustreServerHost(ssh_host.SSHHost):
                     mdti = self.lsh_mdt_instances[mdt_id]
                 else:
                     lustre_fs = LustreFilesystem(fsname)
-                    mdt = LustreMDT(log, lustre_fs, mdt_index, None)
+                    mdt = LustreMDT(log, lustre_fs, mdt_index, backfstype,
+                                    zpool_name=zpool_name)
                     mdti = LustreMDTInstance(log, mdt, self, device, mount_point,
                                              None, add_to_host=add_found)
                 mdts[mdt_id] = mdti

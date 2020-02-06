@@ -38,11 +38,14 @@ def run_commands(log, cclient, cmds):
     Run a list of commands, if exit status is none zero, return failure
     """
     result = log.cl_result
+    cmd_index = 0
     for command in cmds:
         cclient.cc_command(log, command)
         if result.cr_exit_status:
-            log.cl_error("failed to run command [%s]", command)
+            log.cl_error("failed to run command [%s] in command list %s, "
+                         "comand index [%d]", command, cmds, cmd_index)
             return -1
+        cmd_index += 1
     return 0
 
 

@@ -704,6 +704,7 @@ class TestCluster(object):
             mdt_config = {}
             mdt_config[cstr.CSTR_IS_MGS] = False
             mdt_config[cstr.CSTR_INDEX] = mdt_index
+            disk_id = self.tc_fs0_mdt_disk_id_prefix + str(mdt_index)
             if mdt_index == self.tc_fs0_mdt_number_per_mds - 1:
                 is_ldiskfs = False
             else:
@@ -712,16 +713,16 @@ class TestCluster(object):
                 mdt_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_LDISKFS
             else:
                 mdt_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_ZFS
+                zpool = disk_id
+                mdt_config[cstr.CSTR_ZPOOL_NAME] = zpool
             mdt_instance_configs = []
             for rpc_host in self.tc_fs0_mds_pair0:
                 mdt_instance_config = {}
                 mdt_instance_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-                disk_id = self.tc_fs0_mdt_disk_id_prefix + str(mdt_index)
                 block_device = DEV_MAPPER_PREFIX + disk_id
                 if is_ldiskfs:
                     device = block_device
                 else:
-                    zpool = disk_id
                     device = zpool + ("/mdt%d" % mdt_index)
                 mdt_instance_config[cstr.CSTR_DEVICE] = device
                 mdt_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
@@ -747,6 +748,7 @@ class TestCluster(object):
             ost_config = {}
             ost_config[cstr.CSTR_IS_MGS] = False
             ost_config[cstr.CSTR_INDEX] = ost_index
+            disk_id = self.tc_fs0_ost_disk_id_prefix + str(ost_index)
             if ost_index == self.tc_fs0_mdt_number_per_mds - 1:
                 is_ldiskfs = False
             else:
@@ -755,17 +757,18 @@ class TestCluster(object):
                 ost_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_LDISKFS
             else:
                 ost_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_ZFS
+                zpool = disk_id
+                ost_config[cstr.CSTR_ZPOOL_NAME] = zpool
             ost_instance_configs = []
             for rpc_host in self.tc_fs0_oss_pair0:
                 ost_instance_config = {}
                 ost_instance_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-                disk_id = self.tc_fs0_ost_disk_id_prefix + str(ost_index)
+
                 device = DEV_MAPPER_PREFIX + disk_id
                 block_device = DEV_MAPPER_PREFIX + disk_id
                 if is_ldiskfs:
                     device = block_device
                 else:
-                    zpool = disk_id
                     device = zpool + ("/ost%d" % ost_index)
                 ost_instance_config[cstr.CSTR_DEVICE] = device
                 ost_instance_config[cstr.CSTR_MNT] = ("/mnt/" +
@@ -807,6 +810,7 @@ class TestCluster(object):
             mdt_config = {}
             mdt_config[cstr.CSTR_IS_MGS] = False
             mdt_config[cstr.CSTR_INDEX] = mdt_index
+            disk_id = self.tc_fs1_mdt_disk_id_prefix + str(mdt_index)
             if mdt_index == self.tc_fs1_mdt_number_per_mds - 1:
                 is_ldiskfs = False
             else:
@@ -815,16 +819,16 @@ class TestCluster(object):
                 mdt_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_LDISKFS
             else:
                 mdt_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_ZFS
+                zpool = disk_id
+                mdt_config[cstr.CSTR_ZPOOL_NAME] = zpool
             mdt_instance_configs = []
             for rpc_host in self.tc_fs1_mds_pair0:
                 mdt_instance_config = {}
                 mdt_instance_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-                disk_id = self.tc_fs1_mdt_disk_id_prefix + str(mdt_index)
                 block_device = DEV_MAPPER_PREFIX + disk_id
                 if is_ldiskfs:
                     device = block_device
                 else:
-                    zpool = disk_id
                     device = zpool + ("/mdt%d" % mdt_index)
                 mdt_instance_config[cstr.CSTR_DEVICE] = device
                 mdt_instance_config[cstr.CSTR_NID] = rpc_host.lrh_ipv4_addresses[0] + "@tcp"
@@ -850,6 +854,7 @@ class TestCluster(object):
             ost_config = {}
             ost_config[cstr.CSTR_IS_MGS] = False
             ost_config[cstr.CSTR_INDEX] = ost_index
+            disk_id = self.tc_fs1_ost_disk_id_prefix + str(ost_index)
             if ost_index == self.tc_fs1_ost_number_per_oss - 1:
                 is_ldiskfs = False
             else:
@@ -858,16 +863,16 @@ class TestCluster(object):
                 ost_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_LDISKFS
             else:
                 ost_config[cstr.CSTR_BACKFSTYPE] = lustre.BACKFSTYPE_ZFS
+                zpool = disk_id
+                ost_config[cstr.CSTR_ZPOOL_NAME] = zpool
             ost_instance_configs = []
             for rpc_host in self.tc_fs1_oss_pair0:
                 ost_instance_config = {}
                 ost_instance_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-                disk_id = self.tc_fs1_ost_disk_id_prefix + str(ost_index)
                 block_device = DEV_MAPPER_PREFIX + disk_id
                 if is_ldiskfs:
                     device = block_device
                 else:
-                    zpool = disk_id
                     device = zpool + ("/ost%d" % ost_index)
                 ost_instance_config[cstr.CSTR_DEVICE] = device
                 ost_instance_config[cstr.CSTR_MNT] = ("/mnt/" +

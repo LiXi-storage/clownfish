@@ -110,6 +110,7 @@ CSTR_VM_HOSTS = "vm_hosts"
 CSTR_WEB_CLUSTER = "web_cluster"
 CSTR_ZFS_SUPPORT = "zfs_support"
 CSTR_ZPOOL_CREATE = "zpool_create"
+CSTR_ZPOOL_NAME = "zpool_name"
 
 CSTR_TEST_HOSTS = "test_hosts"
 CSTR_CONCURRENCY = "concurrency"

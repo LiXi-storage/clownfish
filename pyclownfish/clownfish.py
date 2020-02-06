@@ -1009,7 +1009,15 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                          lustre.BACKFSTYPE_LDISKFS)
             backfstype = lustre.BACKFSTYPE_LDISKFS
 
-        mgs = lustre.LustreMGS(log, mgs_id, backfstype)
+        zpool_name = None
+        if backfstype == lustre.BACKFSTYPE_ZFS:
+            zpool_name = utils.config_value(mgs_config, cstr.CSTR_ZPOOL_NAME)
+            if zpool_name is None:
+                log.cl_error("no [%s] is configured for MGS [%s]",
+                             cstr.CSTR_ZPOOL_NAME)
+                return None
+
+        mgs = lustre.LustreMGS(log, mgs_id, backfstype, zpool_name=zpool_name)
         mgs_dict[mgs_id] = mgs
 
         instance_configs = utils.config_value(mgs_config, cstr.CSTR_INSTANCES)
@@ -1168,8 +1176,18 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                              lustre.BACKFSTYPE_LDISKFS)
                 backfstype = lustre.BACKFSTYPE_LDISKFS
 
+            zpool_name = None
+            if backfstype == lustre.BACKFSTYPE_ZFS:
+                zpool_name = utils.config_value(mdt_config,
+                                                cstr.CSTR_ZPOOL_NAME)
+                if zpool_name is None:
+                    log.cl_error("no [%s] is configured for MDT with index "
+                                 " [%s] of file system [%s]",
+                                 cstr.CSTR_ZPOOL_NAME, mdt_index, fsname)
+                    return None
+
             mdt = lustre.LustreMDT(log, lustre_fs, mdt_index, backfstype,
-                                   is_mgs=is_mgs)
+                                   is_mgs=is_mgs, zpool_name=zpool_name)
 
             instance_configs = utils.config_value(mdt_config, cstr.CSTR_INSTANCES)
             if instance_configs is None:
@@ -1284,7 +1302,17 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
                              lustre.BACKFSTYPE_LDISKFS)
                 backfstype = lustre.BACKFSTYPE_LDISKFS
 
-            ost = lustre.LustreOST(log, lustre_fs, ost_index, backfstype)
+            zpool_name = None
+            if backfstype == lustre.BACKFSTYPE_ZFS:
+                zpool_name = utils.config_value(ost_config, cstr.CSTR_ZPOOL_NAME)
+                if zpool_name is None:
+                    log.cl_error("no [%s] is configured for OST with index "
+                                 " [%s] of file system [%s]",
+                                 cstr.CSTR_ZPOOL_NAME, ost_index, fsname)
+                    return None
+
+            ost = lustre.LustreOST(log, lustre_fs, ost_index, backfstype,
+                                   zpool_name=zpool_name)
 
             instance_configs = utils.config_value(ost_config, cstr.CSTR_INSTANCES)
             if instance_configs is None:
