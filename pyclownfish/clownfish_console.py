@@ -494,6 +494,8 @@ def usage():
                  (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
     utils.eprint("%s -P %s 192.168.1.2 h" %
                  (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
+    utils.eprint("%s 192.168.1.2:%s service move server1" %
+                 (sys.argv[0], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
 
 
 def main():
@@ -517,13 +519,17 @@ def main():
         if sys.argv[1] == "-h" or sys.argv[1] == "--help":
             usage()
             sys.exit(0)
-        server_url = ("tcp://%s:%s" %
-                      (sys.argv[1], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
+        server_url = sys.argv[1]
+        if ":" not in server_url:
+            server_url += ":" + str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+        server_url = "tcp://" + server_url
         cmdline = None
     elif argc == 3:
         # clownfish_console host cmdline
-        server_url = ("tcp://%s:%s" %
-                      (sys.argv[1], constants.CLOWNFISH_DEFAULT_SERVER_PORT))
+        server_url = sys.argv[1]
+        if ":" not in server_url:
+            server_url += ":" + str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+        server_url = "tcp://" + server_url
         cmdline = sys.argv[2]
     elif argc == 4:
         # clownfish_console -P 3002 host
@@ -531,22 +537,33 @@ def main():
         if sys.argv[1] == "-P":
             port_string = sys.argv[2]
             host = sys.argv[3]
+            if ":" in host:
+                usage()
+                sys.exit(-1)
             cmdline = None
+            server_url = "tcp://%s:%s" % (host, port_string)
         else:
-            host = sys.argv[1]
-            port_string = str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+            server_url = sys.argv[1]
+            if ":" not in server_url:
+                server_url += ":" + str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+            server_url = "tcp://" + server_url
             cmdline = sys.argv[2] + " " + sys.argv[3]
-        server_url = "tcp://%s:%s" % (host, port_string)
     elif argc >= 5:
         # clownfish_console -P 3002 host cmdline...
         # clownfish_console host cmdline1 cmdline2 cmdline3...
         if sys.argv[1] == "-P":
             port_string = sys.argv[2]
             host = sys.argv[3]
+            if ":" in host:
+                usage()
+                sys.exit(-1)
             cmdline_start = 4
+            server_url = "tcp://%s:%s" % (host, port_string)
         else:
-            host = sys.argv[1]
-            port_string = str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+            server_url = sys.argv[1]
+            if ":" not in server_url:
+                server_url += ":" + str(constants.CLOWNFISH_DEFAULT_SERVER_PORT)
+            server_url = "tcp://" + server_url
             cmdline_start = 2
         cmdline = ""
         for arg_index in range(cmdline_start, argc):
