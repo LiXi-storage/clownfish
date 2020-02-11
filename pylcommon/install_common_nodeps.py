@@ -19,15 +19,23 @@ def _iso_mount_and_install(log, workspace, config, config_fpath, install_funct):
     """
     # pylint: disable=bare-except
     local_host = ssh_host.SSHHost("localhost", local=True)
-    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
-    if iso_path is None:
-        iso_path = install_common.find_iso_path_in_cwd(log, local_host, "clownfish-*.iso")
+    fname = utils.config_value(config, cstr.CSTR_ISO_PATH)
+    if fname is None:
+        fname = "clownfish-*.iso"
+        iso_path = install_common.find_iso_path_in_cwd(log, local_host, fname)
         if iso_path is None:
-            log.cl_error("failed to find Clownfish ISO %s under currect "
-                         "directory")
+            log.cl_error("failed to find Clownfish ISO [%s] under currect "
+                         "directory", fname)
             return -1
         log.cl_info("no [%s] is configured, use [%s] under current "
                     "directory", cstr.CSTR_ISO_PATH, iso_path)
+    else:
+        # ISO could have wild card, find that
+        iso_path = install_common.find_iso_path_in_cwd(log, local_host, fname)
+        if iso_path is None:
+            log.cl_error("failed to find Clownfish ISO [%s] under currect "
+                         "directory", fname)
+            return -1
 
     mnt_path = "/mnt/" + utils.random_word(8)
 
@@ -46,7 +54,7 @@ def _iso_mount_and_install(log, workspace, config, config_fpath, install_funct):
 
     try:
         ret = install_funct(log, workspace, config, config_fpath, mnt_path,
-                            local_host)
+                            iso_path, local_host)
     except:
         ret = -1
         log.cl_error("exception: %s", traceback.format_exc())

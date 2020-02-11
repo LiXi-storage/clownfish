@@ -16,12 +16,14 @@
 #               OCF_RESKEY_service_uuid
 #         or:
 #               OCF_RESKEY_mgs_id
+#         OCF_RESKEY_clownfish_server
 #         OCF_RESKEY_options can be speicified.
 #
 # 
 # OCF_RESKEY_fsname       : name of the filesystem. e.g. lustre0
 # OCF_RESKEY_service_uuid : the uuid of the service, e.g. fsname-OST000a or OST000a
 # OCF_RESKEY_mgs_id       : the ID of mgs in clownfish.conf
+# OCF_RESKEY_clownfish_server : The hostname:port of the clownfish server
 # OCF_RESKEY_options      : options to be given to the mount command via -o
 #
 #

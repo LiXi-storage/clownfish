@@ -37,7 +37,6 @@ EXTRA_DIST= \
 	.pylintrc \
 	clownfish.spec \
 	detect-distro.sh \
-	example_configs/clownfish/clownfish_install.conf \
 	example_configs/clownfish/seperate_mgs/clownfish.conf \
 	example_configs/clownfish/seperate_mgs/lvirt.conf \
 	example_configs/ltest/ltest_scheduler.conf \

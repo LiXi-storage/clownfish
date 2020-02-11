@@ -535,10 +535,16 @@ def clownfish_server_do_loop(log, workspace, config, config_fpath):
     """
     Server routine
     """
-    clownfish_server_port = utils.config_value(config, cstr.CSTR_CLOWNFISH_PORT)
+    server_config = utils.config_value(config, cstr.CSTR_CLOWNFISH_SERVER)
+    if server_config is None:
+        log.cl_error("no [%s] is configured, please correct file [%s]",
+                     cstr.CSTR_CLOWNFISH_SERVER, config_fpath)
+        return -1
+
+    clownfish_server_port = utils.config_value(server_config, cstr.CSTR_PORT)
     if clownfish_server_port is None:
-        log.cl_info("no [%s] is configured, using port [%s]",
-                    cstr.CSTR_CLOWNFISH_PORT,
+        log.cl_info("no [%s] is configured in config [%s], using port [%s]",
+                    cstr.CSTR_PORT, cstr.CSTR_CLOWNFISH_SERVER,
                     constants.CLOWNFISH_DEFAULT_SERVER_PORT)
         clownfish_server_port = constants.CLOWNFISH_DEFAULT_SERVER_PORT
 

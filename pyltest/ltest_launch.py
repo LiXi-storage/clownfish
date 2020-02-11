@@ -446,8 +446,6 @@ class TestCluster(object):
         self.tc_lvirt_config_fpath = workspace + "/" + fname
         fname = constants.CLOWNFISH_CONFIG_FNAME
         self.tc_clownfish_config_fpath = workspace + "/" + fname
-        fname = constants.CLOWNFISH_INSTALL_CONFIG_FNAME
-        self.tc_clownfish_install_config_fpath = workspace + "/" + fname
         fname = constants.CLOWNFISH_TEST_CONFIG_FNAME
         self.tc_clownfish_test_config_fpath = workspace + "/" + fname
         fname = constants.CLOWNFISH_BUILD_CONFIG_FNAME
@@ -673,6 +671,13 @@ class TestCluster(object):
             ssh_host_config[cstr.CSTR_HOSTNAME] = rpc_host.lrh_hostname
             ssh_host_config[cstr.CSTR_LUSTRE_DISTRIBUTION_ID] = self.tc_cluster_id
             ssh_host_configs.append(ssh_host_config)
+
+        for rpc_host in [self.tc_clownfish_server0, self.tc_clownfish_server1]:
+            ssh_host_config = {}
+            ssh_host_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
+            ssh_host_config[cstr.CSTR_HOSTNAME] = rpc_host.lrh_hostname
+            ssh_host_configs.append(ssh_host_config)
+
         config[cstr.CSTR_SSH_HOSTS] = ssh_host_configs
 
     def _tc_generate_clownfish_config_mgs_list(self, config):
@@ -927,6 +932,23 @@ class TestCluster(object):
         lustre_configs.append(lustre_config)
         config[cstr.CSTR_LUSTRES] = lustre_configs
 
+    def _tc_generate_clownfish_config_server(self, config):
+        """
+        Generate server part of clownfish.conf
+        """
+        server_config = {}
+        rpc_ip_address = self.tc_rpc_ip_address
+        server_config[cstr.CSTR_VIRTUAL_IP] = rpc_ip_address.ripa_address
+        server_config[cstr.CSTR_BINDNETADDR] = rpc_ip_address.ripa_bindnetaddr
+        server_config[cstr.CSTR_PORT] = constants.CLOWNFISH_DEFAULT_SERVER_PORT
+        server_host_configs = []
+        for rpc_host in [self.tc_clownfish_server0, self.tc_clownfish_server1]:
+            server_host_config = {}
+            server_host_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
+            server_host_configs.append(server_host_config)
+        server_config[cstr.CSTR_SERVER_HOSTS] = server_host_configs
+        config[cstr.CSTR_CLOWNFISH_SERVER] = server_config
+
     def tc_generate_clownfish_config(self, log, launch_argument):
         """
         Generate clownfish.conf
@@ -938,12 +960,12 @@ class TestCluster(object):
         ha_config[cstr.CSTR_NATIVE] = True
         ha_config[cstr.CSTR_BINDNETADDR] = "10.0.0.0"
         config[cstr.CSTR_HIGH_AVAILABILITY] = ha_config
-        config[cstr.CSTR_CLOWNFISH_PORT] = constants.CLOWNFISH_DEFAULT_SERVER_PORT
         config[cstr.CSTR_ISO_PATH] = launch_argument.la_test_host_iso_fpath
         self._tc_generate_clownfish_config_lustre_distributions(config)
         self._tc_generate_clownfish_config_ssh_hosts(config)
         self._tc_generate_clownfish_config_mgs_list(config)
         self._tc_generate_clownfish_config_lustres(config)
+        self._tc_generate_clownfish_config_server(config)
 
         config_fpath = self.tc_clownfish_config_fpath
         start_string = """#
@@ -959,55 +981,12 @@ class TestCluster(object):
         log.cl_info("config of clownfish.conf is saved to [%s]", config_fpath)
         return 0
 
-    def _tc_generate_clownfish_install_config_ssh_hosts(self, config):
-        """
-        Generate the ssh_hosts and cluster part of clownfish_install.conf
-        """
-        ssh_host_configs = []
-        cluster_host_configs = []
-        for rpc_host in [self.tc_clownfish_server0, self.tc_clownfish_server1]:
-            ssh_host_config = {}
-            ssh_host_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-            ssh_host_config[cstr.CSTR_HOSTNAME] = rpc_host.lrh_hostname
-            ssh_host_configs.append(ssh_host_config)
-            cluster_host_config = {}
-            cluster_host_config[cstr.CSTR_HOST_ID] = rpc_host.lrh_hostname
-            cluster_host_configs.append(cluster_host_config)
-        config[cstr.CSTR_SSH_HOSTS] = ssh_host_configs
-        config[cstr.CSTR_CLUSTER] = cluster_host_configs
-
-    def tc_generate_clownfish_install_config(self, log, launch_argument):
-        """
-        Generate clownfish_install.conf
-        """
-        config = {}
-        rpc_ip_address = self.tc_rpc_ip_address
-        config[cstr.CSTR_VIRTUAL_IP] = rpc_ip_address.ripa_address
-        config[cstr.CSTR_BINDNETADDR] = rpc_ip_address.ripa_bindnetaddr
-        config[cstr.CSTR_ISO_PATH] = launch_argument.la_test_host_iso_fpath
-        config[cstr.CSTR_CONFIG_FPATH] = self.tc_clownfish_config_fpath
-        self._tc_generate_clownfish_install_config_ssh_hosts(config)
-
-        config_fpath = self.tc_clownfish_install_config_fpath
-        start_string = """#
-# Configuration file for installing Clownfish
-#
-"""
-        ret = self.tc_write_and_send_config(log, config, config_fpath,
-                                            start_string)
-        if ret:
-            log.cl_error("failed to write and send clownfish_test.conf")
-            return -1
-        log.cl_info("config of clownfish_install.conf is saved to [%s]",
-                    config_fpath)
-        return 0
-
     def tc_generate_clownfish_test_config(self, log):
         """
         Generate clownfish_test.conf
         """
         config = {}
-        config[cstr.CSTR_INSTALL_CONFIG] = self.tc_clownfish_install_config_fpath
+        config[cstr.CSTR_CONFIG_FPATH] = self.tc_clownfish_config_fpath
         install_server_config = {}
         install_server_config[cstr.CSTR_HOSTNAME] = self.tc_install_server.lrh_hostname
         config[cstr.CSTR_INSTALL_SERVER] = install_server_config
@@ -1230,11 +1209,6 @@ class TestCluster(object):
         ret = self.tc_generate_clownfish_config(log, launch_argument)
         if ret:
             log.cl_error("failed to generate config of clownfish")
-            return -1
-
-        ret = self.tc_generate_clownfish_install_config(log, launch_argument)
-        if ret:
-            log.cl_error("failed to generate config of installing clownfish")
             return -1
 
         ret = self.tc_generate_clownfish_test_config(log)

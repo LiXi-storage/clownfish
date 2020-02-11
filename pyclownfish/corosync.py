@@ -21,11 +21,12 @@ class LustreCorosyncCluster(install_common.InstallationCluster):
     """
     Lustre HA cluster config.
     """
-    def __init__(self, mgs_dict, lustres, bindnetaddr, workspace, mnt_path):
+    def __init__(self, mgs_dict, lustres, bindnetaddr, workspace, mnt_path, iso_path):
         # Key is mgs_id, value is LustreMGS
         self.lcc_mgs_dict = mgs_dict
         # Key is fsname, value is LustreFilesystem
         self.lcc_lustres = lustres
+        self.lcc_iso_path = iso_path
         self.lcc_bindnetaddr = bindnetaddr
         self.lcc_corosync_config = ("""
 totem {
@@ -86,7 +87,7 @@ quorum {
 }"""
         super(LustreCorosyncCluster, self).__init__(workspace,
                                                     self.lcc_hosts.values(),
-                                                    mnt_path)
+                                                    mnt_path, iso_path)
         self.lcc_corosync_config += nodelist_string
 
     def lcc_cleanup(self, log):

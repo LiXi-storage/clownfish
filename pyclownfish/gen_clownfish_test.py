@@ -43,7 +43,7 @@ def main():
     config[cstr.CSTR_VIRT_CONFIG] = lvirt.LVIRT_CONFIG
     config[cstr.CSTR_SKIP_VIRT] = False
     config[cstr.CSTR_SKIP_INSTALL] = False
-    config[cstr.CSTR_INSTALL_CONFIG] = constants.CLOWNFISH_INSTALL_CONFIG
+    config[cstr.CSTR_CONFIG_FPATH] = constants.CLOWNFISH_CONFIG
     install_server = {}
     install_server[cstr.CSTR_HOSTNAME] = "install_host"
     install_server[cstr.CSTR_SSH_IDENTITY_FILE] = "/root/.ssh/id_dsa"

@@ -112,11 +112,6 @@ class LustreServiceInstance(object):
         self.lsi_nid = nid
         self.lsi_lock = rwlock.RWLock()
         self.lsi_service_instance_name = host.sh_hostname + ":" + device
-        if zpool_create is None and service.ls_backfstype == BACKFSTYPE_ZFS:
-            reason = ("no zpool_create configured for ZFS service instance %s" %
-                      (self.lsi_service_instance_name))
-            log.cl_error(reason)
-            raise Exception(reason)
         self.lsi_zpool_create = zpool_create
         ret = service.ls_instance_add(log, self)
         if ret:
@@ -177,6 +172,11 @@ class LustreServiceInstance(object):
             return -1
 
         if backfstype == BACKFSTYPE_ZFS:
+            if self.lsi_zpool_create is None:
+                log.cl_error("no zpool_create configured for ZFS service "
+                             "instance %s", self.lsi_service_instance_name)
+                return -1
+
             fields = self.lsi_device.split("/")
             if len(fields) != 2:
                 log.cl_stderr("unexpected device [%s] for service instance "

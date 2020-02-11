@@ -17,6 +17,7 @@ from pylcommon import parallel
 from pylcommon import lustre
 from pylcommon import cstr
 from pylcommon import ssh_host
+from pylcommon import install_common
 from pyclownfish import clownfish_qos
 from pyclownfish import corosync
 from pyclownfish import clownfish_common
@@ -852,6 +853,8 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
     """
     # pylint: disable=too-many-locals,too-many-return-statements
     # pylint: disable=too-many-branches,too-many-statements
+    local_host = ssh_host.SSHHost("localhost", local=True)
+
     lazy_prepare = utils.config_value(config, cstr.CSTR_LAZY_PREPARE)
     if lazy_prepare is None:
         lazy_prepare = False
@@ -915,12 +918,17 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
 
         lustre_distributions[lustre_distribution_id] = lustre_rpms
 
-    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
-    if iso_path is None:
-        log.cl_info("no [%s] in the config file", cstr.CSTR_ISO_PATH)
-    elif not no_operation and not os.path.exists(iso_path):
-        log.cl_error("ISO file [%s] doesn't exist", iso_path)
-        return None
+    fname = utils.config_value(config, cstr.CSTR_ISO_PATH)
+    if fname is None:
+        if not no_operation:
+            log.cl_error("no [%s] in the config file", cstr.CSTR_ISO_PATH)
+            return None
+    elif not no_operation:
+        iso_path = install_common.find_iso_path_in_cwd(log, local_host, fname)
+        if iso_path is None:
+            log.cl_error("failed to find Clownfish ISO [%s] under currect "
+                         "directory", fname)
+            return None
 
     ssh_host_configs = utils.config_value(config, cstr.CSTR_SSH_HOSTS)
     if ssh_host_configs is None:
@@ -947,9 +955,9 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
         lustre_distribution_id = utils.config_value(host_config,
                                                     cstr.CSTR_LUSTRE_DISTRIBUTION_ID)
         if lustre_distribution_id is None:
-            log.cl_error("no [%s] is configured, please correct file [%s]",
-                         cstr.CSTR_LUSTRE_DISTRIBUTION_ID, config_fpath)
-            return None
+            log.cl_info("no [%s] is configured for host [%s], it might not be server host",
+                        cstr.CSTR_LUSTRE_DISTRIBUTION_ID, host_id)
+            continue
 
         if lustre_distribution_id not in lustre_distributions:
             log.cl_error("no Lustre distributions with ID [%s] is "
@@ -1490,7 +1498,6 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
     else:
         log.cl_info("high availability is disabled")
 
-    local_host = ssh_host.SSHHost("localhost", local=True)
     mnt_path = "/mnt/" + utils.random_word(8)
 
     if not no_operation:
@@ -1511,7 +1518,8 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
     if ha_enabled and not ha_native:
         corosync_cluster = corosync.LustreCorosyncCluster(mgs_dict, lustres,
                                                           bindnetaddr,
-                                                          workspace, mnt_path)
+                                                          workspace, mnt_path,
+                                                          iso_path)
 
     monitor_enabled = utils.config_value(config,
                                          cstr.CSTR_MONITOR_ENABLED)

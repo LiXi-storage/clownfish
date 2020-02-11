@@ -78,8 +78,10 @@ def find_iso_path_in_cwd(log, host, iso_path_pattern):
         return None
 
     iso_name = iso_names[0]
-    iso_path = current_dir + "/" + iso_name
-    return iso_path
+
+    if iso_name.startswith("/"):
+        return iso_name
+    return current_dir + "/" + iso_name
 
 
 def generate_repo_file(repo_fpath, packages_dir, package_name):
@@ -243,11 +245,12 @@ class InstallationCluster(object):
     """
     Installation cluster config.
     """
-    def __init__(self, workspace, hosts, mnt_path):
+    def __init__(self, workspace, hosts, mnt_path, iso_path):
         self.ic_hosts = hosts
         self.ic_mnt_path = mnt_path
         self.ic_workspace = workspace
         self.ic_iso_basename = "ISO"
+        self.ic_iso_path = iso_path
         self.ic_iso_dir = workspace + "/" + self.ic_iso_basename
         self.ic_pip_dir = self.ic_iso_dir + "/" + cstr.CSTR_PIP
         self.ic_rpm_fnames = None
@@ -307,6 +310,32 @@ class InstallationCluster(object):
         self.ic_rpm_fnames = retval.cr_stdout.split()
         return 0
 
+    def _ic_send_iso(self, log, host):
+        """
+        send the ISO to a host
+        """
+        # pylint: disable=too-many-return-statements
+        dirname = os.path.dirname(self.ic_iso_path)
+        command = ("mkdir -p %s" % (dirname))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status:
+            log.cl_error("failed to run command [%s] on host [%s], "
+                         "ret = [%d], stdout = [%s], stderr = [%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+        ret = host.sh_send_file(log, self.ic_iso_path, dirname)
+        if ret:
+            log.cl_error("failed to send file [%s] on local host to "
+                         "directory [%s] on host [%s]",
+                         self.ic_iso_path, dirname, host.sh_hostname)
+            return -1
+        return 0
+
     def _ic_host_install(self, log, host, pip_libs, dependent_rpms):
         """
         Install Clownfish on a host
@@ -322,6 +351,12 @@ class InstallationCluster(object):
         ret = self._ic_send_iso_files(log, host)
         if ret:
             log.cl_error("failed to send ISO files to host [%s]",
+                         hostname)
+            return -1
+
+        ret = self._ic_send_iso(log, host)
+        if ret:
+            log.cl_error("failed to send ISO to host [%s]",
                          hostname)
             return -1
 

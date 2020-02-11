@@ -512,24 +512,31 @@ def do_test_connected(log, workspace, console_client,
 
 
 def connect_and_test(log, workspace, test_config, test_config_fpath,
-                     install_config, install_config_fpath,
                      clownfish_config, clownfish_config_fpath,
                      test_functs):
     """
     Connect Clownfish and test
     """
     # pylint: disable=too-many-arguments
-    clownfish_server_ip = utils.config_value(install_config, cstr.CSTR_VIRTUAL_IP)
-    if not clownfish_server_ip:
+    server_config = utils.config_value(clownfish_config,
+                                       cstr.CSTR_CLOWNFISH_SERVER)
+    if not server_config:
         log.cl_error("no [%s] is configured, please correct file [%s]",
-                     cstr.CSTR_VIRTUAL_IP, install_config_fpath)
+                     cstr.CSTR_CLOWNFISH_SERVER, clownfish_config_fpath)
         return -1
 
-    clownfish_server_port = utils.config_value(clownfish_config,
-                                               cstr.CSTR_CLOWNFISH_PORT)
+    clownfish_server_ip = utils.config_value(server_config,
+                                             cstr.CSTR_VIRTUAL_IP)
+    if not clownfish_server_ip:
+        log.cl_error("no [%s] is configured, please correct file [%s]",
+                     cstr.CSTR_VIRTUAL_IP, clownfish_config_fpath)
+        return -1
+
+    clownfish_server_port = utils.config_value(server_config,
+                                               cstr.CSTR_PORT)
     if clownfish_server_port is None:
         log.cl_error("no [%s] is configured, please correct file [%s]",
-                     cstr.CSTR_CLOWNFISH_PORT, clownfish_config_fpath)
+                     cstr.CSTR_PORT, clownfish_config_fpath)
         return -1
 
     server_url = "tcp://%s:%s" % (clownfish_server_ip, clownfish_server_port)
@@ -551,19 +558,17 @@ def connect_and_test(log, workspace, test_config, test_config_fpath,
     return ret
 
 
-def clownfish_send_packages(log, install_config,
-                            install_config_fpath,
-                            config, config_fpath):
+def clownfish_send_packages(log, config, config_fpath):
     """
     Send the required packages to the server hosts
     """
     # pylint: disable=too-many-locals,too-many-branches
     server_hosts = clownfish_install_nodeps.clownfish_parse_server_hosts(log,
-                                                                         install_config,
-                                                                         install_config_fpath)
+                                                                         config,
+                                                                         config_fpath)
     if server_hosts is None:
         log.cl_error("failed to parse Clownfish server hosts, please correct "
-                     "file [%s]", install_config_fpath)
+                     "file [%s]", config_fpath)
         return -1
 
     dist_configs = utils.config_value(config, cstr.CSTR_LUSTRE_DISTRIBUTIONS)
@@ -641,38 +646,17 @@ def clownfish_do_test(log, workspace, test_config, test_config_fpath):
         log.cl_error("failed to install virtual machine")
         return -1
 
-    install_config_fpath = utils.config_value(test_config,
-                                              cstr.CSTR_INSTALL_CONFIG)
-    if install_config_fpath is None:
-        log.cl_error("can NOT find [%s] in the test config, "
-                     "please correct file [%s]",
-                     cstr.CSTR_INSTALL_CONFIG, test_config_fpath)
-        return -1
-
     skip_install = utils.config_value(test_config,
                                       cstr.CSTR_SKIP_INSTALL)
     if skip_install is None:
         log.cl_debug("no [%s] is configured, do not skip install")
         skip_install = False
 
-    install_config_fd = open(install_config_fpath)
-    ret = 0
-    try:
-        install_config = yaml.load(install_config_fd)
-    except:
-        log.cl_error("not able to load [%s] as yaml file: %s",
-                     install_config_fpath, traceback.format_exc())
-        ret = -1
-    install_config_fd.close()
-    if ret:
-        return -1
-
-    clownfish_config_fpath = utils.config_value(install_config,
-                                                cstr.CSTR_CONFIG_FPATH)
+    clownfish_config_fpath = utils.config_value(test_config, cstr.CSTR_CONFIG_FPATH)
     if clownfish_config_fpath is None:
-        log.cl_error("can NOT find [%s] in the installation config, "
+        log.cl_error("can NOT find [%s] in the test config, "
                      "please correct file [%s]",
-                     cstr.CSTR_CONFIG_FPATH, install_config_fpath)
+                     cstr.CSTR_CONFIG_FPATH, test_config_fpath)
         return -1
 
     clownfish_config_fd = open(clownfish_config_fpath)
@@ -688,9 +672,7 @@ def clownfish_do_test(log, workspace, test_config, test_config_fpath):
         return -1
 
     if not skip_install:
-        ret = clownfish_send_packages(log, install_config,
-                                      install_config_fpath,
-                                      clownfish_config,
+        ret = clownfish_send_packages(log, clownfish_config,
                                       clownfish_config_fpath)
         if ret:
             log.cl_error("failed to send Lustre RPMs")
@@ -717,16 +699,15 @@ def clownfish_do_test(log, workspace, test_config, test_config_fpath):
     install_server = ssh_host.SSHHost(install_server_hostname,
                                       identity_file=ssh_identity_file)
 
-    ret = test_common.test_install(log, workspace, install_config_fpath,
+    ret = test_common.test_install(log, workspace, clownfish_config_fpath,
                                    skip_install, install_server, "clownfish",
-                                   constants.CLOWNFISH_INSTALL_CONFIG_FNAME)
+                                   constants.CLOWNFISH_CONFIG_FNAME)
     if ret:
         log.cl_error("failed to test installation of Clownfish")
         return -1
 
     ret = connect_and_test(log, workspace, test_config,
-                           test_config_fpath, install_config,
-                           install_config_fpath, clownfish_config,
+                           test_config_fpath, clownfish_config,
                            clownfish_config_fpath, CLOWNFISH_TESTS)
     return ret
 

@@ -265,18 +265,10 @@ def test_install(log, workspace, install_config_fpath,
     if ret:
         return -1
 
-    config_fpath = utils.config_value(install_config,
-                                      cstr.CSTR_CONFIG_FPATH)
-    if config_fpath is None:
-        log.cl_error("can NOT find [%s] in the installation config, "
-                     "please correct file [%s]",
-                     cstr.CSTR_CONFIG_FPATH, install_config_fpath)
-        return -1
-
     if not skip_install:
         arg = (cmd_name, config_fname)
         ret = start_install(log, workspace, install_server, install_config,
-                            config_fpath, arg)
+                            install_config_fpath, arg)
         if ret:
             log.cl_error("failed to run install test")
             return -1

@@ -134,7 +134,7 @@ cp -a pyclownfish $RPM_BUILD_ROOT%{python_sitelib}
 cp -a pylcommon $RPM_BUILD_ROOT%{python_sitelib}
 cp -a pyltest $RPM_BUILD_ROOT%{python_sitelib}
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}
-cp -a example_configs/clownfish/clownfish_install.conf \
+cp -a \
 	example_configs/clownfish/clownfish_test.conf \
 	example_configs/clownfish/seperate_mgs/clownfish.conf \
 	example_configs/ltest/ltest_scheduler.conf \
@@ -170,7 +170,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/clownfish_server
 %{_bindir}/clownfish_test
 %config(noreplace) %{_sysconfdir}/clownfish.conf
-%config(noreplace) %{_sysconfdir}/clownfish_install.conf
 %config(noreplace) %{_sysconfdir}/clownfish_test.conf
 %if %{with systemd}
     %{_unitdir}/clownfish_server.service

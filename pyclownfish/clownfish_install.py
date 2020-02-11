@@ -42,7 +42,7 @@ def main():
         log.cl_info("installing dependency RPMs of %s",
                     missing_dependencies)
         ret = install_common.dependency_install(log, local_host,
-                                                constants.CLOWNFISH_INSTALL_CONFIG,
+                                                constants.CLOWNFISH_CONFIG,
                                                 missing_dependencies, "Clownfish",
                                                 "clownfish-*.iso")
         if ret:

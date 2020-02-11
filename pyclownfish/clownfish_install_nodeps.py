@@ -6,7 +6,6 @@ Tool for Clownfish cluster setup
 Clownfish is an automatic management system for Lustre
 """
 import sys
-import os
 import re
 import time
 
@@ -49,10 +48,10 @@ class ClownfishCluster(install_common.InstallationCluster):
     Clownfish HA cluster config.
     """
     def __init__(self, workspace, hosts, virtual_ip, bindnetaddr, mnt_path,
-                 clownfish_config_fpath):
-        super(ClownfishCluster, self).__init__(workspace,
-                                               hosts,
-                                               mnt_path)
+                 iso_path, clownfish_config_fpath):
+        super(ClownfishCluster, self).__init__(workspace, hosts, mnt_path,
+                                               iso_path)
+        self.ccl_iso_path = iso_path
         self.ccl_virtual_ip = virtual_ip
         self.ccl_bindnetaddr = bindnetaddr
         # Clownfish config file path on installation server
@@ -500,6 +499,12 @@ def clownfish_parse_server_hosts(log, config, config_fpath):
                      cstr.CSTR_SSH_HOSTS, config_fpath)
         return None
 
+    server_config = utils.config_value(config, cstr.CSTR_CLOWNFISH_SERVER)
+    if server_config is None:
+        log.cl_error("no [%s] is configured, please correct file [%s]",
+                     cstr.CSTR_CLOWNFISH_SERVER, config_fpath)
+        return None
+
     hosts = {}
     for host_config in ssh_host_configs:
         host_id = host_config[cstr.CSTR_HOST_ID]
@@ -527,20 +532,21 @@ def clownfish_parse_server_hosts(log, config, config_fpath):
                                 host_id=host_id)
         hosts[host_id] = host
 
-    cluster_config = utils.config_value(config, cstr.CSTR_CLUSTER)
-    if cluster_config is None:
+    server_hosts = utils.config_value(server_config, cstr.CSTR_SERVER_HOSTS)
+    if server_hosts is None:
         log.cl_error("can NOT find [%s] in the config file, "
                      "please correct file [%s]",
-                     cstr.CSTR_CLUSTER, config_fpath)
+                     cstr.CSTR_SERVER_HOSTS, config_fpath)
         return None
 
     clownfish_hosts = []
-    for host_config in cluster_config:
+    for host_config in server_hosts:
         host_id = host_config[cstr.CSTR_HOST_ID]
         if host_id is None:
             log.cl_error("can NOT find [%s/%s] in the config of a "
                          "SSH host, please correct file [%s]",
-                         cstr.CSTR_CLUSTER, cstr.CSTR_HOST_ID, config_fpath)
+                         cstr.CSTR_HOST_ID, cstr.CSTR_SERVER_HOSTS,
+                         config_fpath)
             return None
 
         if host_id not in hosts:
@@ -552,19 +558,19 @@ def clownfish_parse_server_hosts(log, config, config_fpath):
     return clownfish_hosts
 
 
-def clownfish_install_parse_config(log, workspace, config, config_fpath, mnt_path):
+def clownfish_install_parse_config(log, workspace, config, config_fpath,
+                                   mnt_path, iso_path):
     """
     Parse the config and init Clownfish HA cluster
     """
-    # pylint: disable=too-many-locals,too-many-branches
-    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
-    if iso_path is None:
-        log.cl_info("no [%s] in the config file", cstr.CSTR_ISO_PATH)
-    elif not os.path.exists(iso_path):
-        log.cl_error("ISO file [%s] doesn't exist", iso_path)
+    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
+    server_config = utils.config_value(config, cstr.CSTR_CLOWNFISH_SERVER)
+    if server_config is None:
+        log.cl_error("no [%s] is configured, please correct file [%s]",
+                     cstr.CSTR_CLOWNFISH_SERVER, config_fpath)
         return -1
 
-    virtual_ip = utils.config_value(config, cstr.CSTR_VIRTUAL_IP)
+    virtual_ip = utils.config_value(server_config, cstr.CSTR_VIRTUAL_IP)
     if not virtual_ip:
         log.cl_error("no [%s] is configured, please correct file [%s]",
                      cstr.CSTR_VIRTUAL_IP, config_fpath)
@@ -578,7 +584,7 @@ def clownfish_install_parse_config(log, workspace, config, config_fpath, mnt_pat
                      "[%s]", virtual_ip, config_fpath)
         return None
 
-    bindnetaddr = utils.config_value(config, cstr.CSTR_BINDNETADDR)
+    bindnetaddr = utils.config_value(server_config, cstr.CSTR_BINDNETADDR)
     if not bindnetaddr:
         log.cl_error("no [%s] is configured, please correct file [%s]",
                      cstr.CSTR_BINDNETADDR, config_fpath)
@@ -595,16 +601,8 @@ def clownfish_install_parse_config(log, workspace, config, config_fpath, mnt_pat
                      "file [%s]", config_fpath)
         return None
 
-    clownfish_config_fpath = utils.config_value(config,
-                                                cstr.CSTR_CONFIG_FPATH)
-    if clownfish_config_fpath is None:
-        log.cl_error("can NOT find [%s] in the installation config, "
-                     "please correct file [%s]",
-                     cstr.CSTR_CONFIG_FPATH, config_fpath)
-        return -1
-
     return ClownfishCluster(workspace, clownfish_hosts, virtual_ip, bindnetaddr,
-                            mnt_path, clownfish_config_fpath)
+                            mnt_path, iso_path, config_fpath)
 
 
 def usage():
@@ -615,14 +613,14 @@ def usage():
                  sys.argv[0])
 
 
-def clownfish_install(log, workspace, config, config_fpath, mnt_path,
+def clownfish_install(log, workspace, config, config_fpath, mnt_path, iso_path,
                       localhost):
     # pylint: disable=too-many-arguments
     """
     Install Clownfish cluster
     """
     cluster = clownfish_install_parse_config(log, workspace, config, config_fpath,
-                                             mnt_path)
+                                             mnt_path, iso_path)
     if cluster is None:
         log.cl_error("failed to parse config of Clownfish cluster")
         return -1
@@ -674,6 +672,6 @@ def main():
     """
     Clownfish installation command
     """
-    cmd_general.main(constants.CLOWNFISH_INSTALL_CONFIG,
+    cmd_general.main(constants.CLOWNFISH_CONFIG,
                      constants.CLOWNFISH_INSTALL_LOG_DIR,
                      clownfish_mount_and_install)
