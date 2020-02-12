@@ -95,8 +95,35 @@ quorum {
         Cleanup the whole cluster
         """
         for host in self.lcc_hosts.itervalues():
+            log.cl_info("destroying corosync cluster on host [%s]",
+                        host.sh_hostname)
             command = "pcs cluster destroy"
-            host.sh_run(log, command)
+            retval = host.sh_run(log, command, timeout=60)
+            if retval.cr_exit_status != 0:
+                # Stop might fail, kill -9 by force
+                log.cl_info("failed to run command [%s] on host "
+                            "[%s], ret = [%d], stdout = [%s], stderr = "
+                            "[%s], trying to kill it by force",
+                            command,
+                            host.sh_hostname,
+                            retval.cr_exit_status,
+                            retval.cr_stdout,
+                            retval.cr_stderr)
+
+                command = "killall -9 corosync"
+                retval = host.sh_run(log, command)
+
+                command = "pcs cluster destroy"
+                retval = host.sh_run(log, command)
+                if retval.cr_exit_status != 0:
+                    log.cl_info("failed to run command [%s] on host "
+                                "[%s], ret = [%d], stdout = [%s], stderr = "
+                                "[%s], igoring",
+                                command,
+                                host.sh_hostname,
+                                retval.cr_exit_status,
+                                retval.cr_stdout,
+                                retval.cr_stderr)
         return 0
 
     def lcc_config(self, log, workspace):
@@ -221,8 +248,8 @@ quorum {
             type_string = "@" + template_name
         else:
             type_string = "ocf:clownfish:lustre_server.sh"
-        command = ("crm configure primitive %s %s params fsname=%s service_uuid=%s" %
-                   (resource_name, type_string, fsname, service_name))
+        command = ("crm configure primitive %s %s params service=%s" %
+                   (resource_name, type_string, service_name))
         retval = host.sh_run(log, command)
         if retval.cr_exit_status != 0:
             log.cl_error("failed to run command [%s] on host "
@@ -339,7 +366,7 @@ quorum {
         for mgs in self.lcc_mgs_dict.itervalues():
             mgs_id = mgs.ls_service_name
             resource_name = CLOWNFISH_RESOURCE_PREFIX + mgs_id
-            command = ("pcs resource create %s ocf:clownfish:lustre_server.sh mgs_id=%s" %
+            command = ("pcs resource create %s ocf:clownfish:lustre_server.sh service=%s" %
                        (resource_name, mgs_id))
             retval = host0.sh_run(log, command)
             if retval.cr_exit_status != 0:

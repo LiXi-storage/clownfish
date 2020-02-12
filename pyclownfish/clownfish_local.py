@@ -18,13 +18,10 @@ from pylcommon import cmd_general
 from pylcommon import constants
 from pyclownfish import clownfish
 
-KEY_MGS_ID = "mgs_id"
-KEY_FSNAME = "fsname"
 KEY_HOSTNAME = "hostname"
-KEY_UUID = "service_uuid"
+KEY_SERVICE = "service"
 
-CLOWNFISH_LOCATION_KEYS = [KEY_MGS_ID, KEY_FSNAME, KEY_HOSTNAME,
-                           KEY_UUID]
+CLOWNFISH_LOCATION_KEYS = [KEY_HOSTNAME, KEY_SERVICE]
 
 CLOWNFISH_LOCAL_LOG_DIR = "/var/log/clownfish/clownfish_local"
 
@@ -40,40 +37,11 @@ def _clownfish_local_main(log, workspace, config, config_fpath,
     else:
         hostname = socket.gethostname()
 
-    if KEY_MGS_ID in location_dict:
-        mgs_id = location_dict[KEY_MGS_ID]
+    if KEY_SERVICE in location_dict:
+        service_name = location_dict[KEY_SERVICE]
     else:
-        mgs_id = None
-
-    if KEY_UUID in location_dict:
-        service_uuid = location_dict[KEY_UUID]
-    else:
-        service_uuid = None
-
-    if KEY_FSNAME in location_dict:
-        fsname = location_dict[KEY_FSNAME]
-    else:
-        fsname = None
-
-    if mgs_id is not None and service_uuid is not None:
-        log.cl_error("key [%s] and [%s] cannot be used at the same time",
-                     KEY_MGS_ID, KEY_UUID)
-        return -1
-
-    if mgs_id is not None and fsname is not None:
-        log.cl_error("key [%s] and [%s] cannot be used at the same time",
-                     KEY_MGS_ID, KEY_FSNAME)
-        return -1
-
-    if ((fsname is not None and service_uuid is None) or
-            (fsname is None and service_uuid is not None)):
-        log.cl_error("key [%s] and [%s] should be specified at the same time",
-                     KEY_FSNAME, KEY_UUID)
-        return -1
-
-    if mgs_id is None and fsname is None:
-        log.cl_error("either key [%s] or [%s] should be specified",
-                     KEY_FSNAME, KEY_MGS_ID)
+        log.cl_error("key [%s] is not specified",
+                     KEY_SERVICE)
         return -1
 
     clownfish_instance = clownfish.init_instance(log, workspace, config,
@@ -83,32 +51,21 @@ def _clownfish_local_main(log, workspace, config, config_fpath,
         log.cl_error("failed to init Clownfish")
         return -1
 
-    if mgs_id is not None:
-        if mgs_id not in clownfish_instance.ci_mgs_dict:
-            log.cl_error("mgs with id [%s] is not configured",
-                         mgs_id)
-            return -1
-        service = clownfish_instance.ci_mgs_dict[mgs_id]
+    if service_name in clownfish_instance.ci_mgs_dict:
+        service = clownfish_instance.ci_mgs_dict[service_name]
     else:
+        fields = service_name.split("-")
+        if len(fields) != 2:
+            log.cl_error("invalid value [%s] for key [%s]",
+                         service_name, KEY_SERVICE)
+            return -1
+
+        fsname = fields[0]
         if fsname not in clownfish_instance.ci_lustres:
             log.cl_error("Lustre file system with name [%s] is not configured",
                          fsname)
             return -1
         lustrefs = clownfish_instance.ci_lustres[fsname]
-
-        fields = service_uuid.split("-")
-        if len(fields) > 2 or len(fields) == 0:
-            log.cl_error("invalid value [%s] for key [%s]",
-                         service_uuid, KEY_UUID)
-            return -1
-        elif len(fields) == 1:
-            service_name = fsname + "-" + fields[0]
-        else:
-            if fields[0] != fsname:
-                log.cl_error("invalid fsname [%s] in the value [%s] for key [%s], expected [%s]",
-                             fields[0], service_uuid, KEY_UUID, fsname)
-                return -1
-            service_name = service_uuid
         if service_name not in lustrefs.lf_service_dict:
             log.cl_error("service [%s] is not configured for Lustre [%s]",
                          service_name, fsname)
@@ -160,18 +117,14 @@ def usage(command):
 logdir: the dir path to save logs
 config: config file path
 key is one of the following:
-    mgs_id: the ID of mgs in clownfish.conf
-    fsname: the name of Lustre file system
     hostname: the hostname the service runs
-    uuid: the uuid of the service, e.g. fsname-OST000a, OST000a, or MDT000a
+    service: the name of the service, e.g. fsname-OST000a, or MGS ID in clownfish.conf, e.g. lustre_mgs
 
 Examples:
-    %s mgs_id=lustre_mgs hostname=server0
-    %s fsname=lustre0 uuid=MDT000a hostname=server1
-    %s fsname=lustre0 uuid=OST000a hostname=server2
-    %s uuid=lustre0-OST000a hostname=server2
-    %s fsname=lustre0 uuid=lustre0-OST000a hostname=server2
-    """ % (command, command, command, command, command, command))
+    %s service=lustre_mgs hostname=server1
+    %s service=lustre0-OST000a hostname=server2
+    %s service=lustre0-MDT000a hostname=server3
+    """ % (command, command, command, command))
 
 
 def find_equal(target):

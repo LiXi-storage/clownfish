@@ -11,20 +11,13 @@
 #
 # usage: ./lustre_server {start|stop|status|monitor|validate-all|meta-data}
 #
-#         OCF parameters should include either:
-#               OCF_RESKEY_fsname
-#               OCF_RESKEY_service_uuid
-#         or:
-#               OCF_RESKEY_mgs_id
-#         OCF_RESKEY_clownfish_server
+#         OCF parameters should include
+#         OCF_RESKEY_service
 #         OCF_RESKEY_options can be speicified.
 #
-# 
-# OCF_RESKEY_fsname       : name of the filesystem. e.g. lustre0
-# OCF_RESKEY_service_uuid : the uuid of the service, e.g. fsname-OST000a or OST000a
-# OCF_RESKEY_mgs_id       : the ID of mgs in clownfish.conf
-# OCF_RESKEY_clownfish_server : The hostname:port of the clownfish server
-# OCF_RESKEY_options      : options to be given to the mount command via -o
+# OCF_RESKEY_service : the name of the service, e.g. fsname-OST000a, or
+#                      MGS ID in clownfish.conf, e.g. lustre_mgs
+# OCF_RESKEY_options : options to be given to the mount command via -o
 #
 #
 # NOTE: There is no locking (such as a SCSI reservation) being done here.
@@ -82,27 +75,11 @@ meta_data() {
 <shortdesc lang="en">lustre_server resource agent</shortdesc>
 
 <parameters>
-<parameter name="fsname">
+<parameter name="service">
  <longdesc lang="en">
-   name of the filesystem, e.g. lustre0
+   the name of the Lustre service, e.g. fsname-OST000a, or MGS ID in clownfish.conf, e.g. lustre_mgs
  </longdesc>
- <shortdesc lang="en">file system name</shortdesc>
- <content type="string" default="" />
-</parameter>
-
-<parameter name="service_uuid">
- <longdesc lang="en">
-   the uuid of the Lustre service.
- </longdesc>
- <shortdesc lang="en">servive uuid</shortdesc>
- <content type="string" default="" />
-</parameter>
-
-<parameter name="mgs_id">
- <longdesc lang="en">
-   the ID of mgs in clownfish.conf.
- </longdesc>
- <shortdesc lang="en">mgs_id</shortdesc>
+ <shortdesc lang="en">servive name</shortdesc>
  <content type="string" default="" />
 </parameter>
 
@@ -416,33 +393,9 @@ usage)          usage
 esac
 
 # Check the OCF_RESKEY_ environment variables...
-FSNAME=$OCF_RESKEY_fsname
-SERVICE_UUID=$OCF_RESKEY_service_uuid
-MGS_ID=$OCF_RESKEY_mgs_id
-if [ ! -z "$FSNAME" ]; then
-        if [ -z "$SERVICE_UUID" ]; then
-                ocf_log err "OCF_RESKEY_fsname and OCF_RESKEY_uuid should be specified at the same time"
-                exit $OCF_ERR_ARGS
-        fi
-        if [ ! -z "$MGS_ID" ]; then
-                ocf_log err "OCF_RESKEY_fsname and OCF_RESKEY_mgs_id should NOT be specified at the same time"
-                exit $OCF_ERR_ARGS
-        fi
-        output=$(clf_local fsname=$FSNAME service_uuid=$SERVICE_UUID)
-        if [ $? -ne 0 ]; then
-                ocf_log err "failure of clf_local"
-                if [ "$OP" = "stop" ]; then
-                    exit $OCF_SUCCESS
-                else
-                    exit $OCF_NOT_RUNNING
-                fi
-        fi
-elif [ ! -z "$MGS_ID" ]; then
-        if [ ! -z "$UUID" ]; then
-                ocf_log err "OCF_RESKEY_mgs_id and OCF_RESKEY_service_uuid should NOT be specified at the same time"
-                exit $OCF_ERR_ARGS
-        fi
-        output=$(clf_local mgs_id=$MGS_ID)
+SERVICE_UUID=$OCF_RESKEY_service
+if [ ! -z "$SERVICE_UUID" ]; then
+        output=$(clf_local service=$SERVICE_UUID)
         if [ $? -ne 0 ]; then
                 ocf_log err "failure of clf_local"
                 if [ "$OP" = "stop" ]; then
@@ -452,7 +405,7 @@ elif [ ! -z "$MGS_ID" ]; then
                 fi
         fi
 else
-        ocf_log err "either OCF_RESKEY_mgs_id or OCF_RESKEY_fsname should be specified"
+        ocf_log err "OCF_RESKEY_service should be specified"
         exit $OCF_ERR_ARGS
 fi
 

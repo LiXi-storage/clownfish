@@ -918,17 +918,18 @@ def init_instance(log, workspace, config, config_fpath, no_operation=False):
 
         lustre_distributions[lustre_distribution_id] = lustre_rpms
 
-    fname = utils.config_value(config, cstr.CSTR_ISO_PATH)
-    if fname is None:
+    iso_path = utils.config_value(config, cstr.CSTR_ISO_PATH)
+    if iso_path is None:
         if not no_operation:
             log.cl_error("no [%s] in the config file", cstr.CSTR_ISO_PATH)
             return None
     elif not no_operation:
-        iso_path = install_common.find_iso_path_in_cwd(log, local_host, fname)
-        if iso_path is None:
+        fname = install_common.find_iso_path_in_cwd(log, local_host, iso_path)
+        if fname is None:
             log.cl_error("failed to find Clownfish ISO [%s] under currect "
-                         "directory", fname)
+                         "directory", iso_path)
             return None
+        iso_path = fname
 
     ssh_host_configs = utils.config_value(config, cstr.CSTR_SSH_HOSTS)
     if ssh_host_configs is None:
