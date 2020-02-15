@@ -361,7 +361,7 @@ quorum {
         if running_host is None:
             return ret
 
-        command = "%s %s pwd" % (CLOWNFISH_CONSOLE_CMD, self.ccl_virtual_ip)
+        command = "%s %s h" % (CLOWNFISH_CONSOLE_CMD, self.ccl_virtual_ip)
         for host in self.ic_hosts:
             retval = host.sh_run(log, command)
             if retval.cr_exit_status != 0:

@@ -48,7 +48,7 @@ def service_move(connection, args):
 
     service = instance.ci_name2service(service_name)
     if service is None:
-        log.cl_error("invalid service name [%s]")
+        log.cl_error("invalid service name [%s]", service_name)
         return -1
 
     found = False

@@ -312,6 +312,7 @@ class CommandLog(object):
             self.cl_condition.release()
         elif is_stdout:
             self.cl_result.cr_stdout += message + "\n"
+            print message
         elif is_stderr:
             self.cl_result.cr_stderr += message + "\n"
 

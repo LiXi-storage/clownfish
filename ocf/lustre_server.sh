@@ -395,7 +395,7 @@ esac
 # Check the OCF_RESKEY_ environment variables...
 SERVICE_UUID=$OCF_RESKEY_service
 if [ ! -z "$SERVICE_UUID" ]; then
-        output=$(clf_local service=$SERVICE_UUID)
+        output=$(clf_local locate $SERVICE_UUID)
         if [ $? -ne 0 ]; then
                 ocf_log err "failure of clf_local"
                 if [ "$OP" = "stop" ]; then

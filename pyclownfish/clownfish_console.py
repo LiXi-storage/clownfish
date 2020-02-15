@@ -408,6 +408,7 @@ class ClownfishClient(object):
                 break
 
         readline.set_completer(None)
+        return int(log.cl_result.cr_exit_status)
 
     def cc_fini(self):
         """
@@ -570,7 +571,6 @@ def main():
             if cmdline != "":
                 cmdline += " "
             cmdline += sys.argv[arg_index]
-        server_url = "tcp://%s:%s" % (host, port_string)
 
     identity = time_util.local_strftime(time_util.utcnow(), "%Y-%m-%d-%H_%M_%S")
     workspace = CLOWNFISH_CONSOLE_LOG_DIR + "/" + identity
@@ -603,7 +603,7 @@ def main():
     ret = clownfish_console_loop(log, workspace, server_url, cmdline=cmdline)
     if ret:
         log.cl_error("Clownfish console exited with failure, please check [%s] for "
-                     "more log\n", workspace)
+                     "more log", workspace)
         sys.exit(ret)
     if cmdline is None:
         log.cl_info("Clownfish console exited, please check [%s] for more log",

@@ -31,7 +31,8 @@ def usage(usage_func):
 
 
 def main(default_config_fpath, default_log_parent, main_func,
-         usage_func=None, parse_func=None, console_level=logging.INFO):
+         usage_func=None, parse_func=None, console_level=logging.INFO,
+         lock=True):
     """
     The main function of a command
     """
@@ -108,21 +109,31 @@ def main(default_config_fpath, default_log_parent, main_func,
     if config_fpath != save_fpath:
         shutil.copyfile(config_fpath, save_fpath)
 
-    lock_file = config_fpath + ".lock"
-    lock = filelock.FileLock(lock_file)
-    try:
-        with lock.acquire(timeout=0):
-            try:
-                if parse_func is None:
-                    ret = main_func(log, workspace, config_fpath)
-                else:
-                    ret = main_func(log, workspace, config_fpath, private)
-            except:
-                ret = -1
-                log.cl_error("exception: %s", traceback.format_exc())
-            lock.release()
-    except filelock.Timeout:
-        ret = -1
-        log.cl_error("someone else is holding lock of file [%s], aborting "
-                     "to prevent conflicts", lock_file)
+    if lock:
+        lock_file = config_fpath + ".lock"
+        lock = filelock.FileLock(lock_file)
+        try:
+            with lock.acquire(timeout=0):
+                try:
+                    if parse_func is None:
+                        ret = main_func(log, workspace, config_fpath)
+                    else:
+                        ret = main_func(log, workspace, config_fpath, private)
+                except:
+                    ret = -1
+                    log.cl_error("exception: %s", traceback.format_exc())
+                lock.release()
+        except filelock.Timeout:
+            ret = -1
+            log.cl_error("someone else is holding lock of file [%s], aborting "
+                         "to prevent conflicts", lock_file)
+    else:
+        try:
+            if parse_func is None:
+                ret = main_func(log, workspace, config_fpath)
+            else:
+                ret = main_func(log, workspace, config_fpath, private)
+        except:
+            ret = -1
+            log.cl_error("exception: %s", traceback.format_exc())
     sys.exit(ret)
