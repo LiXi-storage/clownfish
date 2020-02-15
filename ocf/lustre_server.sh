@@ -190,51 +190,12 @@ lustre_health_check()
 #
 lustre_server_start()
 {
-        lustre_health_check
+        output=$(clf_local start $SERVICE_UUID)
+        retval=$?
         if [ $? -ne 0 ]; then
-                return ${OCF_ERR_GENERIC}
+                ocf_log err "failure of clf_local start"
+                return $retval
         fi
-
-        # See if the device is currently mounted
-        lustre_server_status >/dev/null 2>&1
-        rc=$?
-        if [ $rc -ne $OCF_NOT_RUNNING -a $rc -ne $OCF_SUCCESS ]; then
-                ocf_log err "Unexpected status ($c) before mounting $DEVICE to $MOUNTPOINT"
-        elif [ $rc -eq $OCF_SUCCESS ]; then
-                return $OCF_SUCCESS
-        fi
-
-        if [ ! -d "$MOUNTPOINT" ] ; then
-                ocf_log err "Couldn't find directory  [$MOUNTPOINT] to use as a mount point"
-                exit $OCF_ERR_ARGS
-        fi
-
-        flushbufs $DEVICE
-
-        jdev=`get_external_journal_device`
-        rc=$?
-        if [ $rc -ne 0 ]; then
-                ocf_log err "Failure to get journal device"
-                return $rc
-        fi
-
-        if [ -n "$jdev" ]; then
-                if [ -n "$options" ]; then
-                        options="$options,journal_dev=$jdev"
-                else
-                        options="-ojournal_dev=$jdev"
-                fi
-        fi
-
-        # Mount the filesystem.
-        cmd="$MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT"
-        ocf_log info "Running $cmd"
-        res=`eval $cmd 2>&1`
-        if [ $? -ne 0 ]; then
-                ocf_log err "cmd \"$cmd\" failed: $res"
-                return $OCF_ERR_GENERIC
-        fi
-
         return 0
 }
 # end of lustre_server_start
