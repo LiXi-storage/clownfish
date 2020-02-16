@@ -272,10 +272,64 @@ quorum {
 
     def _ccl_create_mdt_template(self, log, host, fsname):
         """
-        Create resource for Lustre MDT
+        Create template for Lustre MDT
         """
         # pylint: disable=no-self-use
         template_name = CLOWNFISH_RESOURCE_PREFIX + fsname + "_MDT"
+        command = ("crm configure rsc_template %s ocf:clownfish:lustre_server.sh" %
+                   (template_name))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+        return 0
+
+    def _ccl_create_ost_resource(self, log, host, ost):
+        """
+        Create resource for Lustre OST
+        """
+        service_name = ost.ls_service_name
+        lustrefs = ost.ls_lustre_fs
+        fsname = lustrefs.lf_fsname
+        template_name = CLOWNFISH_RESOURCE_PREFIX + fsname + "_OST"
+        resource_name = CLOWNFISH_RESOURCE_PREFIX + service_name
+
+        type_string = "@" + template_name
+        command = ("crm configure primitive %s %s params service=%s" %
+                   (resource_name, type_string, service_name))
+        retval = host.sh_run(log, command)
+        if retval.cr_exit_status != 0:
+            log.cl_error("failed to run command [%s] on host "
+                         "[%s], ret = [%d], stdout = [%s], stderr = "
+                         "[%s]",
+                         command,
+                         host.sh_hostname,
+                         retval.cr_exit_status,
+                         retval.cr_stdout,
+                         retval.cr_stderr)
+            return -1
+
+        retval = self._ccl_resource_limit_hosts(log, host, resource_name,
+                                                ost)
+        if retval:
+            log.cl_error("failed to disable resource [%s] location of hosts for service [%s]",
+                         resource_name, ost.ls_service_name)
+            return -1
+        return 0
+
+    def _ccl_create_ost_template(self, log, host, fsname):
+        """
+        Create template for Lustre OST
+        """
+        # pylint: disable=no-self-use
+        template_name = CLOWNFISH_RESOURCE_PREFIX + fsname + "_OST"
         command = ("crm configure rsc_template %s ocf:clownfish:lustre_server.sh" %
                    (template_name))
         retval = host.sh_run(log, command)
@@ -444,6 +498,56 @@ quorum {
                                  retval.cr_stdout,
                                  retval.cr_stderr)
                     return -1
+
+            ret = self._ccl_create_ost_template(log, host, fsname)
+            if ret:
+                log.cl_error("failed to create OST template for Lustre file system [%s]",
+                             fsname)
+                return -1
+
+            ost_resource_string = "\("
+            for ost in lustrefs.lf_osts.itervalues():
+                service_name = ost.ls_service_name
+                ret = self._ccl_create_ost_resource(log, host0, ost)
+                if ret:
+                    log.cl_error("failed to create Pacemaker resource for Lustre service [%s]",
+                                 service_name)
+                    return -1
+                resource_name = CLOWNFISH_RESOURCE_PREFIX + service_name
+                ost_resource_string += " " + resource_name + ":start"
+            ost_resource_string += " \)"
+
+            if have_mdt:
+                order_id = CLOWNFISH_RESOURCE_PREFIX + fsname + "_mdt_before_ost"
+                command = ("crm configure order %s Optional: %s %s" %
+                           (order_id, mdt_resource_string, ost_resource_string))
+                retval = host0.sh_run(log, command)
+                if retval.cr_exit_status != 0:
+                    log.cl_error("failed to run command [%s] on host "
+                                 "[%s], ret = [%d], stdout = [%s], stderr = "
+                                 "[%s]",
+                                 command,
+                                 host0.sh_hostname,
+                                 retval.cr_exit_status,
+                                 retval.cr_stdout,
+                                 retval.cr_stderr)
+                    return -1
+
+            order_id = CLOWNFISH_RESOURCE_PREFIX + fsname + "_mgs_before_ost"
+            command = ("crm configure order %s Optional: %s %s" %
+                       (order_id, mgs_resource_name, ost_resource_string))
+            retval = host0.sh_run(log, command)
+            if retval.cr_exit_status != 0:
+                log.cl_error("failed to run command [%s] on host "
+                             "[%s], ret = [%d], stdout = [%s], stderr = "
+                             "[%s]",
+                             command,
+                             host0.sh_hostname,
+                             retval.cr_exit_status,
+                             retval.cr_stdout,
+                             retval.cr_stderr)
+                return -1
+
         log.cl_info("corosync and pacemaker is started in the cluster")
 
         return 0
