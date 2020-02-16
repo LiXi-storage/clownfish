@@ -205,30 +205,13 @@ lustre_server_start()
 #
 lustre_server_stop()
 {
-        # See if the device is currently mounted
-        lustre_server_mounted >/dev/null 2>&1
-        if [ $? -eq $OCF_NOT_RUNNING ]; then
-                # Already unmounted, wonderful.
-                rc=$OCF_SUCCESS
-        else
-                # Umount $MOUNTPOINT.
-                ocf_log info "Trying to unmount $MOUNTPOINT"
-                cmd="$UMOUNT $MOUNTPOINT"
-                ocf_log info "Running $cmd"
-                res=`eval $cmd 2>&1`
-                rc=$?
-                if [ $rc -eq 0 ] ; then
-                        rc=$OCF_SUCCESS
-                        ocf_log info "unmounted $MOUNTPOINT successfully"
-                else
-                        rc=$OCF_ERR_GENERIC
-                        ocf_log err "\"$cmd\" failed ($rc): $res"
-                fi
+        output=$(clf_local stop $SERVICE_UUID)
+        retval=$?
+        if [ $? -ne 0 ]; then
+                ocf_log err "failure of clf_local stop"
+                return $retval
         fi
-
-        flushbufs $DEVICE
-
-        return $rc
+        return 0
 }
 # end of lustre_server_stop
 

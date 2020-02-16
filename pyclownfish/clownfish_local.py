@@ -19,6 +19,7 @@ from pylcommon import constants
 from pylcommon import cstr
 from pyclownfish import clownfish
 from pyclownfish import clownfish_console
+from pyclownfish import clownfish_subsystem_service
 
 KEY_HOSTNAME = "hostname"
 KEY_SERVICE = "service"
@@ -225,11 +226,12 @@ def _clownfish_local_main_locate(log, workspace, config, config_fpath, args):
     return -1
 
 
-def _clownfish_local_main_start(log, workspace, config, config_fpath, args):
+def _clownfish_local_main_start_stop(log, workspace, config, config_fpath,
+                                     service_names, start=True):
     """
-    Start the service
+    Start or stop the service
     """
-    # pylint: disable=unused-argument,too-many-locals
+    # pylint: disable=unused-argument,too-many-locals,too-many-arguments
     server_config = utils.config_value(config, cstr.CSTR_CLOWNFISH_SERVER)
     if server_config is None:
         log.cl_error("no [%s] is configured, please correct file [%s]",
@@ -259,8 +261,17 @@ def _clownfish_local_main_start(log, workspace, config, config_fpath, args):
         return -1
 
     result = log.cl_result
-    for arg in args:
-        command = ("service move %s %s" % (arg, local_hostname))
+    for service_name in service_names:
+        if start:
+            command = ("%s %s %s %s" %
+                       (clownfish_subsystem_service.SUBSYSTEM_SERVICE_NAME,
+                        clownfish_subsystem_service.SUBSYSTEM_SERVICE_COMMNAD_MOVE,
+                        service_name, local_hostname))
+        else:
+            command = ("%s %s %s" %
+                       (clownfish_subsystem_service.SUBSYSTEM_SERVICE_NAME,
+                        clownfish_subsystem_service.SUBSYSTEM_SERVICE_COMMNAD_UMOUNT,
+                        service_name))
         console_client.cc_command(log, command)
         if result.cr_exit_status:
             log.cl_error("failed to run command [%s]", command)
@@ -268,6 +279,24 @@ def _clownfish_local_main_start(log, workspace, config, config_fpath, args):
             break
     console_client.cc_fini()
     return ret
+
+
+def _clownfish_local_main_start(log, workspace, config, config_fpath, service_names):
+    """
+    Start the service
+    """
+    return _clownfish_local_main_start_stop(log, workspace, config,
+                                            config_fpath, service_names,
+                                            start=True)
+
+
+def _clownfish_local_main_stop(log, workspace, config, config_fpath, service_names):
+    """
+    Start the service
+    """
+    return _clownfish_local_main_start_stop(log, workspace, config,
+                                            config_fpath, service_names,
+                                            start=False)
 
 
 def _clownfish_local_main(log, workspace, config, config_fpath,
@@ -282,6 +311,9 @@ def _clownfish_local_main(log, workspace, config, config_fpath,
     elif command == "start":
         return _clownfish_local_main_start(log, workspace, config,
                                            config_fpath, arguments[1:])
+    elif command == "stop":
+        return _clownfish_local_main_stop(log, workspace, config,
+                                          config_fpath, arguments[1:])
     else:
         usage(sys.argv[0])
         sys.exit(1)
