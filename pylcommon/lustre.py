@@ -794,24 +794,14 @@ class LustreServiceStatus(object):
 
         if self.lss_mounted_instance is None:
             if not_mgs:
-                if lustrefs.lf_mgs is not None:
-                    mgs_lock_handle = lustrefs.lf_mgs.ls_lock.rwl_reader_acquire(log)
-                    if mgs_lock_handle is None:
-                        log.cl_stderr("aborting fixing service [%s]",
-                                      service_name)
-                        return -1
                 fs_lock_handle = lustrefs.lf_lock.rwl_reader_acquire(log)
                 if fs_lock_handle is None:
-                    if lustrefs.lf_mgs is not None:
-                        mgs_lock_handle.rwh_release()
                     log.cl_stderr("aborting fixing service [%s]",
                                   service_name)
                     return -1
             ret = service.ls_mount(log)
             if not_mgs:
                 fs_lock_handle.rwh_release()
-                if lustrefs.lf_mgs is not None:
-                    mgs_lock_handle.rwh_release()
             if ret:
                 log.cl_stderr("failed to fix service [%s] by mounting it",
                               service_name)
@@ -1582,16 +1572,8 @@ class LustreFilesystem(object):
 
         # Only acquire read lock of MGS is fine, since MGS won't be
         # umounted/mounted in this operation
-        if self.lf_mgs is not None:
-            mgs_lock_handle = self.lf_mgs.ls_lock.rwl_reader_acquire(log)
-            if mgs_lock_handle is None:
-                log.cl_stderr("aborting %sing service [%s]",
-                              operation, service_name)
-                return -1
         fs_lock_handle = self.lf_lock.rwl_writer_acquire(log)
         if fs_lock_handle is None:
-            if self.lf_mgs is not None:
-                mgs_lock_handle.rwh_release()
             log.cl_stderr("aborting %sing service [%s]",
                           operation, service_name)
             return -1
@@ -1602,8 +1584,6 @@ class LustreFilesystem(object):
             ret = service.ls_umount(log)
 
         fs_lock_handle.rwh_release()
-        if self.lf_mgs is not None:
-            mgs_lock_handle.rwh_release()
         return ret
 
     def lf_mount_service(self, log, service, hostname=None):
@@ -1656,23 +1636,13 @@ class LustreFilesystem(object):
         First hold read lock of the MGS, and then hold the write lock of
         the file system.
         """
-        if self.lf_mgs is not None:
-            mgs_lock_handle = self.lf_mgs.ls_lock.rwl_reader_acquire(log)
-            if mgs_lock_handle is None:
-                log.cl_stderr("aborting umounting file system [%s]",
-                              self.lf_fsname)
-                return -1
         fs_lock_handle = self.lf_lock.rwl_writer_acquire(log)
         if fs_lock_handle is None:
-            if self.lf_mgs is not None:
-                mgs_lock_handle.rwh_release()
             log.cl_stderr("aborting mounting file system [%s]",
                           self.lf_fsname)
             return -1
         ret = self.lf_umount_nolock(log)
         fs_lock_handle.rwh_release()
-        if self.lf_mgs is not None:
-            mgs_lock_handle.rwh_release()
         return ret
 
     def lf_list(self, log):
